@@ -28,6 +28,11 @@ def menu():
     while True:
         screen.fill(WHITE)
 
+
+        # "Level" label
+        level_label = font.render("Level", True, BLACK)
+        screen.blit(level_label, (470, 130))  # center over buttons
+
         # Draw level buttons (1 to 5)
         for i in range(5):
             x = 100 + i * 170
@@ -36,7 +41,8 @@ def menu():
             draw_button(str(i + 1), rect, color)
 
         # Draw START button
-        draw_button("▶ START", pygame.Rect(412, 400, 180, 80), BLUE)
+        draw_button("START", pygame.Rect(312, 400, 180, 80), BLUE)
+        draw_button("🏆 Highscores", pygame.Rect(532, 400, 220, 80), GRAY)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
