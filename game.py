@@ -5,8 +5,8 @@ import random
 import sys
 
 # GPIO setup
-button_pins = [5, 6]       # GPIOs for 2 buttons
-led_pins = [17, 27]        # GPIOs for 2 LEDs
+button_pins = [5, 6]
+led_pins = [17, 27]
 GPIO.setmode(GPIO.BCM)
 
 for bp in button_pins:
@@ -21,7 +21,6 @@ pygame.init()
 screen = pygame.display.set_mode((1024, 600))
 pygame.display.set_caption("Reaction Tester")
 
-# Font setup
 try:
     digital_font = pygame.font.Font("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 80)
 except:
@@ -40,7 +39,7 @@ BLACK = (0, 0, 0)
 
 level = 1
 score = 0
-game_duration = 60  # seconds
+game_duration = 60
 stop_requested = False
 
 def draw_text(text, x, y, font, color=BLACK):
@@ -54,51 +53,49 @@ def countdown():
         pygame.display.update()
         time.sleep(1)
 
-def light_up_button(index, led_time=1.0):
-    GPIO.output(led_pins[index], True)
-    start = time.time()
-    while time.time() - start < led_time:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                GPIO.cleanup()
-                pygame.quit()
-                sys.exit()
-        if GPIO.input(button_pins[index]) == GPIO.HIGH:
-            GPIO.output(led_pins[index], False)
-            return True
-        time.sleep(0.01)
-    GPIO.output(led_pins[index], False)
-    return False
-
 def game_loop():
     global score, stop_requested
     score = 0
     stop_requested = False
     countdown()
-    start_time = time.time()
+    start_ticks = pygame.time.get_ticks()
+    current_led = None
+    led_start_time = 0
+    led_duration = 1000
+    hit_window = False
 
-    while time.time() - start_time < game_duration:
-        elapsed = time.time() - start_time
-        if stop_requested:
+    while True:
+        screen.fill(WHITE)
+        elapsed_ms = pygame.time.get_ticks() - start_ticks
+        if elapsed_ms >= game_duration * 1000 or stop_requested:
             break
 
-        screen.fill(WHITE)
-        time_left = max(0, game_duration - elapsed)
+        time_left = max(0, game_duration - elapsed_ms / 1000)
         timer_text = f"{time_left:05.2f}s"
-        draw_text(timer_text, 412, 20, digital_font, RED)
+        draw_text(timer_text, 380, 10, digital_font, RED)
         draw_text(f"Score: {score}", 800, 100, small_font)
         draw_text(f"Level: {level}", 50, 100, small_font)
-        draw_text("■ STOP", 880, 500, small_font)
 
-        pygame.draw.rect(screen, RED, (860, 490, 140, 60), border_radius=8)
+        stop_button_rect = pygame.Rect(870, 500, 130, 60)
+        pygame.draw.rect(screen, RED, stop_button_rect, border_radius=8)
+        stop_text = small_font.render("■ STOP", True, WHITE)
+        screen.blit(stop_text, stop_text.get_rect(center=stop_button_rect.center))
 
-        pygame.display.update()
+        if not hit_window:
+            current_led = random.randint(0, len(button_pins) - 1)
+            GPIO.output(led_pins[current_led], True)
+            led_start_time = pygame.time.get_ticks()
+            hit_window = True
 
-        index = random.randint(0, len(button_pins) - 1)
-        hit = light_up_button(index)
-        if hit:
+        elif pygame.time.get_ticks() - led_start_time > led_duration:
+            GPIO.output(led_pins[current_led], False)
+            hit_window = False
+
+        if hit_window and GPIO.input(button_pins[current_led]) == GPIO.HIGH:
+            GPIO.output(led_pins[current_led], False)
             score += 1
-        time.sleep(0.2)
+            hit_window = False
+            time.sleep(0.1)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -106,8 +103,11 @@ def game_loop():
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if pygame.Rect(860, 490, 140, 60).collidepoint(event.pos):
+                if stop_button_rect.collidepoint(event.pos):
                     stop_requested = True
+
+        pygame.display.update()
+        clock.tick(60)
 
     screen.fill(WHITE)
     draw_text("GAME STOPPED!" if stop_requested else "TIME'S UP!", 340, 200, font)
@@ -119,7 +119,6 @@ def menu():
     global level
     while True:
         screen.fill(WHITE)
-
         draw_text("Level", 470, 100, small_font)
 
         for i in range(5):
