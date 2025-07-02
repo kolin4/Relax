@@ -79,9 +79,9 @@ def game_loop():
 
         time_left = max(0, game_duration - elapsed_ms / 1000)
         timer_text = f"{time_left:05.2f}s"
-        draw_centered_screen_text(timer_text, 30, digital_font, RED)
-        draw_centered_screen_text(f"Score: {score}", 850, medium_font)
-        draw_centered_screen_text(f"Level: {level}", 100, medium_font)
+        draw_text(timer_text, 370, 50, digital_font, RED)
+        draw_text(f"Level: {level}", 50, 30, medium_font)
+        draw_text(f"Score: {score}", 760, 30, medium_font)
 
         stop_button_rect = pygame.Rect(850, 500, 160, 70)
         pygame.draw.rect(screen, RED, stop_button_rect, border_radius=8)
@@ -121,11 +121,14 @@ def game_loop():
     pygame.display.update()
     time.sleep(5)
 
+def draw_text(text, x, y, font, color=BLACK):
+    rendered = font.render(text, True, color)
+    screen.blit(rendered, (x, y))
+
 def menu():
     global level
     while True:
         screen.fill(WHITE)
-
         draw_centered_screen_text("Level", 80, medium_font)
 
         for i in range(5):
@@ -164,4 +167,3 @@ except KeyboardInterrupt:
     GPIO.cleanup()
     pygame.quit()
     sys.exit()
-
