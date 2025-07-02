@@ -20,6 +20,13 @@ for lp in led_pins:
 pygame.init()
 screen = pygame.display.set_mode((1024, 600))
 pygame.display.set_caption("Reaction Tester")
+
+# Font setup
+try:
+    digital_font = pygame.font.Font("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 80)
+except:
+    digital_font = pygame.font.SysFont("Courier", 80)
+
 font = pygame.font.SysFont("Arial", 60)
 small_font = pygame.font.SysFont("Arial", 40)
 clock = pygame.time.Clock()
@@ -28,11 +35,13 @@ WHITE = (255, 255, 255)
 GRAY = (200, 200, 200)
 GREEN = (0, 200, 0)
 BLUE = (0, 100, 255)
+RED = (200, 0, 0)
 BLACK = (0, 0, 0)
 
 level = 1
 score = 0
 game_duration = 60  # seconds
+stop_requested = False
 
 def draw_text(text, x, y, font, color=BLACK):
     rendered = font.render(text, True, color)
@@ -62,17 +71,27 @@ def light_up_button(index, led_time=1.0):
     return False
 
 def game_loop():
-    global score
+    global score, stop_requested
     score = 0
+    stop_requested = False
     countdown()
     start_time = time.time()
 
     while time.time() - start_time < game_duration:
+        elapsed = time.time() - start_time
+        if stop_requested:
+            break
+
         screen.fill(WHITE)
-        time_left = int(game_duration - (time.time() - start_time))
-        draw_text(f"Time: {time_left}s", 50, 30, small_font)
-        draw_text(f"Score: {score}", 800, 30, small_font)
-        draw_text(f"Level: {level}", 450, 30, small_font)
+        time_left = max(0, game_duration - elapsed)
+        timer_text = f"{time_left:05.2f}s"
+        draw_text(timer_text, 412, 20, digital_font, RED)
+        draw_text(f"Score: {score}", 800, 100, small_font)
+        draw_text(f"Level: {level}", 50, 100, small_font)
+        draw_text("■ STOP", 880, 500, small_font)
+
+        pygame.draw.rect(screen, RED, (860, 490, 140, 60), border_radius=8)
+
         pygame.display.update()
 
         index = random.randint(0, len(button_pins) - 1)
@@ -81,8 +100,17 @@ def game_loop():
             score += 1
         time.sleep(0.2)
 
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                GPIO.cleanup()
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if pygame.Rect(860, 490, 140, 60).collidepoint(event.pos):
+                    stop_requested = True
+
     screen.fill(WHITE)
-    draw_text("TIME'S UP!", 400, 200, font)
+    draw_text("GAME STOPPED!" if stop_requested else "TIME'S UP!", 340, 200, font)
     draw_text(f"Final Score: {score}", 360, 300, font)
     pygame.display.update()
     time.sleep(5)
@@ -92,10 +120,8 @@ def menu():
     while True:
         screen.fill(WHITE)
 
-        # Level label
         draw_text("Level", 470, 100, small_font)
 
-        # Level buttons
         for i in range(5):
             x = 100 + i * 170
             rect = pygame.Rect(x, 150, 120, 80)
@@ -103,7 +129,6 @@ def menu():
             pygame.draw.rect(screen, color, rect, border_radius=12)
             draw_text(str(i + 1), x + 40, 160, small_font)
 
-        # Start and Highscores buttons
         pygame.draw.rect(screen, BLUE, (312, 400, 180, 80), border_radius=12)
         pygame.draw.rect(screen, GRAY, (532, 400, 220, 80), border_radius=12)
         draw_text("▶ START", 330, 410, small_font)
