@@ -43,8 +43,8 @@ LEVEL_TIMINGS = {
     1: 1000,
     2: 900,
     3: 800,
-    4: 700,
-    5: 600
+    4: 500,
+    5: 300
 }
 
 def draw_text(text, x, y, font, color=BLACK):
@@ -144,11 +144,11 @@ def menu():
             rect = pygame.Rect(x, 150, 120, 80)
             color = GREEN if level == i + 1 else GRAY
             pygame.draw.rect(screen, color, rect, border_radius=12)
-            draw_centered_in_rect(str(i + 1), rect, small_font, BLACK)
+            draw_text(str(i + 1), x + 45, 165, medium_font)
 
-        start_button_rect = pygame.Rect(300, 400, 200, 90)
+        start_button_rect = pygame.Rect(300, 400, 450, 90)
         pygame.draw.rect(screen, BLUE, start_button_rect, border_radius=12)
-        draw_centered_in_rect("▶ START", start_button_rect, small_font)
+        draw_centered_text("▶ START", 445, small_font, WHITE)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
