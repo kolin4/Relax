@@ -144,11 +144,11 @@ def menu():
             rect = pygame.Rect(x, 150, 120, 80)
             color = GREEN if level == i + 1 else GRAY
             pygame.draw.rect(screen, color, rect, border_radius=12)
-            draw_centered_text(str(i + 1), 190, small_font, BLACK)
+            draw_centered_in_rect(str(i + 1), rect, small_font, BLACK)
 
         start_button_rect = pygame.Rect(300, 400, 200, 90)
         pygame.draw.rect(screen, BLUE, start_button_rect, border_radius=12)
-        draw_centered_text("▶ START", 445, small_font, WHITE)
+        draw_centered_in_rect("▶ START", start_button_rect, small_font)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
