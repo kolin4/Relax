@@ -1,47 +1,50 @@
 import pygame
 import RPi.GPIO as GPIO
 import time
-import sys
 import random
+import sys
 
-# GPIO config
-BUTTON_PINS = [5, 6]
-LED_PINS = [17, 27]
+# GPIO setup
+button_pins = [5, 6]  # Two buttons
+led_pins = [17, 27]   # Two LEDs
 GPIO.setmode(GPIO.BCM)
-for pin in BUTTON_PINS:
-    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # aktywacja przy LOW
-for pin in LED_PINS:
-    GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, False)
+for bp in button_pins:
+    GPIO.setup(bp, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+for lp in led_pins:
+    GPIO.setup(lp, GPIO.OUT)
+    GPIO.output(lp, False)
 
 # Pygame setup
 pygame.init()
 screen = pygame.display.set_mode((1024, 600))
-pygame.display.set_caption("2-Button Reaction Tester")
+pygame.display.set_caption("Reaction Tester")
 font = pygame.font.SysFont("Arial", 60)
 medium_font = pygame.font.SysFont("Arial", 50)
 small_font = pygame.font.SysFont("Arial", 40)
 digital_font = pygame.font.SysFont("Courier", 110)
 clock = pygame.time.Clock()
 
+# Colors
 WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (200, 0, 0)
 GRAY = (200, 200, 200)
 GREEN = (0, 200, 0)
 BLUE = (0, 100, 255)
+RED = (200, 0, 0)
+BLACK = (0, 0, 0)
 
+# Game state
+level = 1
 score = 0
 game_duration = 60
 stop_requested = False
-level = 1
 
-LEVEL_SETTINGS = {
+# Timing per level
+LEVEL_TIMINGS = {
     1: 1000,
     2: 900,
     3: 800,
     4: 700,
-    5: 600,
+    5: 600
 }
 
 def draw_text(text, x, y, font, color=BLACK):
@@ -66,52 +69,47 @@ def game_loop():
     stop_requested = False
     countdown()
 
-    start_ticks = pygame.time.get_ticks()
+    led_time = LEVEL_TIMINGS.get(level, 1000)
+
+    start_time = pygame.time.get_ticks()
     current_led = None
     led_on = False
     led_start = 0
-    delay = LEVEL_SETTINGS.get(level, 1000)
-    next_led_time = start_ticks + random.randint(1000, 2500)
+    next_led_time = start_time + led_time
 
     while not stop_requested:
-        current_ticks = pygame.time.get_ticks()
-        elapsed = (current_ticks - start_ticks) / 1000
+        current_time = pygame.time.get_ticks()
+        elapsed = (current_time - start_time) / 1000
         if elapsed >= game_duration:
             break
 
         screen.fill(WHITE)
-        draw_text(f"Level: {level}", 50, 30, medium_font)
-        draw_text(f"Score: {score}", 400, 30, medium_font)
-        draw_text(f"Time: {game_duration - elapsed:05.2f}s", 700, 30, medium_font)
+        draw_text(f"Score: {score}", 50, 30, medium_font)
+        draw_text(f"Time: {game_duration - elapsed:05.2f}s", 650, 30, medium_font)
+        draw_text(f"Level: {level}", 400, 30, medium_font)
 
-        # Obsługa LED
-        if not led_on and current_ticks >= next_led_time:
+        if not led_on and current_time >= next_led_time:
             current_led = random.randint(0, 1)
-            GPIO.output(LED_PINS[current_led], True)
+            GPIO.output(led_pins[current_led], True)
             led_on = True
-            led_start = current_ticks
+            led_start = current_time
 
-        if led_on and current_ticks - led_start > delay:
-            GPIO.output(LED_PINS[current_led], False)
+        if led_on and current_time - led_start >= led_time:
+            GPIO.output(led_pins[current_led], False)
             led_on = False
-            next_led_time = current_ticks + delay
-            current_led = None
+            next_led_time = current_time + led_time
 
-        # Sprawdzenie przycisków
-        for i in range(2):
-            if GPIO.input(BUTTON_PINS[i]) == GPIO.LOW:
-                if led_on:
+        if led_on:
+            for i, pin in enumerate(button_pins):
+                if GPIO.input(pin) == GPIO.LOW:
                     if i == current_led:
                         score += 1
                     else:
                         score -= 1
-                    GPIO.output(LED_PINS[current_led], False)
+                    GPIO.output(led_pins[current_led], False)
                     led_on = False
-                    next_led_time = current_ticks + delay
-                    current_led = None
-                break  # tylko jeden guzik na raz
+                    next_led_time = current_time + led_time
 
-        # Obsługa przycisku STOP
         stop_button_rect = pygame.Rect(800, 500, 200, 80)
         pygame.draw.rect(screen, RED, stop_button_rect)
         draw_centered_text("■ STOP", 540, small_font, WHITE)
@@ -126,8 +124,9 @@ def game_loop():
         pygame.display.update()
         clock.tick(60)
 
-    for pin in LED_PINS:
-        GPIO.output(pin, False)
+    for lp in led_pins:
+        GPIO.output(lp, False)
+
     screen.fill(WHITE)
     draw_centered_text("KONIEC", 220, font)
     draw_centered_text(f"Twój wynik: {score}", 320, font)
@@ -138,7 +137,7 @@ def menu():
     global level
     while True:
         screen.fill(WHITE)
-        draw_centered_text("Wybierz Poziom", 80, medium_font)
+        draw_centered_text("Wybierz poziom", 80, medium_font)
 
         for i in range(5):
             x = 100 + i * 170
