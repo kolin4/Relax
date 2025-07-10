@@ -97,7 +97,7 @@ def draw_keyboard():
     key_width = 80
     key_height = 80
     spacing = 10
-    start_y = 150
+    start_y = 220
     key_rects = []
 
     for row_index, row in enumerate(keys):
@@ -114,8 +114,8 @@ def draw_keyboard():
             key_rects.append((rect, letter))
 
     # BACKSPACE and OK buttons
-    back_rect = pygame.Rect(300, 540, 180, 50)
-    ok_rect = pygame.Rect(550, 540, 180, 50)
+    back_rect = pygame.Rect(300, 500, 180, 50)
+    ok_rect = pygame.Rect(550, 500, 180, 50)
     pygame.draw.rect(screen, RED, back_rect, border_radius=8)
     pygame.draw.rect(screen, GREEN, ok_rect, border_radius=8)
     screen.blit(small_font.render("← BACK", True, WHITE), (back_rect.x + 20, back_rect.y + 10))
