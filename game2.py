@@ -97,7 +97,7 @@ def draw_keyboard():
     key_width = 80
     key_height = 80
     spacing = 10
-    start_y = 250
+    start_y = 150
     key_rects = []
 
     for row_index, row in enumerate(keys):
