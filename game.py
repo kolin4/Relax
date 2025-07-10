@@ -1,138 +1,83 @@
-import pygame
-import RPi.GPIO as GPIO
-import time
-import random
-import sys
+# Additional imports
+import os
+import json
 
-# GPIO setup
-button_pins = [5, 6]  # Two buttons
-led_pins = [17, 27]   # Two LEDs
-GPIO.setmode(GPIO.BCM)
-for bp in button_pins:
-    GPIO.setup(bp, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-for lp in led_pins:
-    GPIO.setup(lp, GPIO.OUT)
-    GPIO.output(lp, False)
+# Constants for highscore
+HIGHSCORE_DIR = "wyniki"
+HIGHSCORE_FILE_TEMPLATE = os.path.join(HIGHSCORE_DIR, "level_{level}.json")
+MAX_HIGHSCORES = 10
 
-# Pygame setup
-pygame.init()
-screen = pygame.display.set_mode((1024, 600))
-pygame.display.set_caption("Reaction Tester")
-font = pygame.font.SysFont("Arial", 60)
-medium_font = pygame.font.SysFont("Arial", 50)
-small_font = pygame.font.SysFont("Arial", 40)
-digital_font = pygame.font.SysFont("Courier", 110)
-clock = pygame.time.Clock()
+# Ensure highscore directory exists
+if not os.path.exists(HIGHSCORE_DIR):
+    os.makedirs(HIGHSCORE_DIR)
 
-# Colors
-WHITE = (255, 255, 255)
-GRAY = (200, 200, 200)
-GREEN = (0, 200, 0)
-BLUE = (0, 100, 255)
-RED = (200, 0, 0)
-BLACK = (0, 0, 0)
+def load_highscores(level):
+    path = HIGHSCORE_FILE_TEMPLATE.format(level=level)
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            return json.load(f)
+    return []
 
-# Game state
-level = 1
-score = 0
-game_duration = 60
-stop_requested = False
+def save_highscores(level, scores):
+    path = HIGHSCORE_FILE_TEMPLATE.format(level=level)
+    with open(path, 'w') as f:
+        json.dump(scores, f)
 
-# Timing per level
-LEVEL_TIMINGS = {
-    1: 1000,
-    2: 900,
-    3: 800,
-    4: 500,
-    5: 300
-}
+def maybe_add_highscore(level, score):
+    scores = load_highscores(level)
+    if len(scores) < MAX_HIGHSCORES or score > scores[-1]['score']:
+        name = prompt_for_name()
+        scores.append({"name": name, "score": score})
+        scores.sort(key=lambda x: x['score'], reverse=True)
+        scores = scores[:MAX_HIGHSCORES]
+        save_highscores(level, scores)
 
-def draw_text(text, x, y, font, color=BLACK):
-    surface = font.render(text, True, color)
-    screen.blit(surface, (x, y))
-
-def draw_centered_text(text, y, font, color=BLACK):
-    surface = font.render(text, True, color)
-    rect = surface.get_rect(center=(512, y))
-    screen.blit(surface, rect)
-
-def countdown():
-    for i in range(3, 0, -1):
+def prompt_for_name():
+    name = ""
+    running = True
+    while running:
         screen.fill(WHITE)
-        draw_centered_text(str(i), 300, font)
+        draw_centered_text("Wpisz swoje imie:", 200, medium_font)
+        draw_centered_text(name, 300, digital_font)
+
         pygame.display.update()
-        time.sleep(1)
-
-def game_loop():
-    global score, stop_requested, level
-    score = 0
-    stop_requested = False
-    countdown()
-
-    led_time = LEVEL_TIMINGS.get(level, 1000)
-
-    start_time = pygame.time.get_ticks()
-    current_led = None
-    led_on = False
-    led_start = 0
-    next_led_time = start_time + led_time
-
-    while not stop_requested:
-        current_time = pygame.time.get_ticks()
-        elapsed = (current_time - start_time) / 1000
-        if elapsed >= game_duration:
-            break
-
-        screen.fill(WHITE)
-        draw_text(f"Score: {score}", 50, 30, medium_font)
-        draw_text(f"Time: {game_duration - elapsed:05.2f}s", 650, 30, medium_font)
-        draw_text(f"Level: {level}", 400, 30, medium_font)
-
-        if not led_on and current_time >= next_led_time:
-            current_led = random.randint(0, 1)
-            GPIO.output(led_pins[current_led], True)
-            led_on = True
-            led_start = current_time
-
-        if led_on and current_time - led_start >= led_time:
-            GPIO.output(led_pins[current_led], False)
-            led_on = False
-            next_led_time = current_time + led_time
-
-        if led_on:
-            for i, pin in enumerate(button_pins):
-                if GPIO.input(pin) == GPIO.LOW:
-                    if i == current_led:
-                        score += 1
-                    else:
-                        score -= 1
-                    GPIO.output(led_pins[current_led], False)
-                    led_on = False
-                    next_led_time = current_time + led_time
-
-        stop_button_rect = pygame.Rect(800, 500, 200, 80)
-        pygame.draw.rect(screen, RED, stop_button_rect)
-        draw_centered_text("■ STOP", 540, small_font, WHITE)
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                stop_requested = True
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if stop_button_rect.collidepoint(event.pos):
-                    stop_requested = True
+                return "Anonim"
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN and len(name) > 0:
+                    running = False
+                elif event.key == pygame.K_BACKSPACE:
+                    name = name[:-1]
+                elif len(name) < 10:
+                    name += event.unicode
+    return name
+
+def show_highscores(level):
+    scores = load_highscores(level)
+    running = True
+    while running:
+        screen.fill(WHITE)
+        draw_centered_text(f"Top 10 - Poziom {level}", 60, font)
+
+        for idx, entry in enumerate(scores):
+            draw_text(f"{idx+1}. {entry['name']} - {entry['score']}", 200, 130 + idx * 40, small_font)
+
+        exit_button = pygame.Rect(940, 10, 60, 40)
+        pygame.draw.rect(screen, RED, exit_button)
+        draw_text("X", 955, 10, medium_font, WHITE)
 
         pygame.display.update()
-        clock.tick(60)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                GPIO.cleanup()
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if exit_button.collidepoint(event.pos):
+                    running = False
 
-    for lp in led_pins:
-        GPIO.output(lp, False)
-
-    screen.fill(WHITE)
-    draw_centered_text("KONIEC", 220, font)
-    draw_centered_text(f"Twój wynik: {score}", 320, font)
-    pygame.display.update()
-    time.sleep(5)
-
+# Add highscore button to menu()
 def menu():
     global level
     while True:
@@ -146,9 +91,14 @@ def menu():
             pygame.draw.rect(screen, color, rect, border_radius=12)
             draw_text(str(i + 1), x + 45, 165, medium_font)
 
-        start_button_rect = pygame.Rect(300, 400, 450, 90)
+        start_button_rect = pygame.Rect(300, 400, 200, 90)
+        highscore_button_rect = pygame.Rect(550, 400, 200, 90)
+
         pygame.draw.rect(screen, BLUE, start_button_rect, border_radius=12)
+        pygame.draw.rect(screen, GRAY, highscore_button_rect, border_radius=12)
+
         draw_centered_text("▶ START", 445, small_font, WHITE)
+        draw_centered_text("Highscore", 445, small_font, BLACK)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -162,13 +112,9 @@ def menu():
                         level = i + 1
                 if start_button_rect.collidepoint(x, y):
                     game_loop()
+                    maybe_add_highscore(level, score)
+                if highscore_button_rect.collidepoint(x, y):
+                    show_highscores(level)
 
         pygame.display.update()
         clock.tick(30)
-
-try:
-    menu()
-finally:
-    GPIO.cleanup()
-    pygame.quit()
-    sys.exit()
