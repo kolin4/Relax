@@ -1,4 +1,3 @@
-
 import pygame
 import RPi.GPIO as GPIO
 import time
@@ -7,7 +6,11 @@ import sys
 import os
 import json
 
-# GPIO setup
+# === FOLDERS ===
+SAVE_DIR = "wyniki"
+os.makedirs(SAVE_DIR, exist_ok=True)
+
+# === GPIO setup ===
 button_pins = [5, 6]  # Two buttons
 led_pins = [17, 27]   # Two LEDs
 GPIO.setmode(GPIO.BCM)
@@ -17,7 +20,7 @@ for lp in led_pins:
     GPIO.setup(lp, GPIO.OUT)
     GPIO.output(lp, False)
 
-# Pygame setup
+# === Pygame setup ===
 pygame.init()
 screen = pygame.display.set_mode((1024, 600))
 pygame.display.set_caption("Reaction Tester")
@@ -27,7 +30,7 @@ small_font = pygame.font.SysFont("Arial", 40)
 digital_font = pygame.font.SysFont("Courier", 110)
 clock = pygame.time.Clock()
 
-# Colors
+# === Colors ===
 WHITE = (255, 255, 255)
 GRAY = (200, 200, 200)
 GREEN = (0, 200, 0)
@@ -35,13 +38,13 @@ BLUE = (0, 100, 255)
 RED = (200, 0, 0)
 BLACK = (0, 0, 0)
 
-# Game state
+# === Game state ===
 level = 1
 score = 0
 game_duration = 60
 stop_requested = False
 
-# Timing per level
+# === Level timings (ms) ===
 LEVEL_TIMINGS = {
     1: 1000,
     2: 900,
@@ -50,31 +53,7 @@ LEVEL_TIMINGS = {
     5: 300
 }
 
-# Highscore data
-HIGHSCORE_DIR = "wyniki"
-os.makedirs(HIGHSCORE_DIR, exist_ok=True)
-
-def get_highscore_file(level):
-    return os.path.join(HIGHSCORE_DIR, f"level_{level}.json")
-
-def load_highscores(level):
-    path = get_highscore_file(level)
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            return json.load(f)
-    return []
-
-def save_highscores(level, scores):
-    path = get_highscore_file(level)
-    with open(path, "w") as f:
-        json.dump(scores, f)
-
-def add_score(level, name, score):
-    scores = load_highscores(level)
-    scores.append({"name": name, "score": score})
-    scores = sorted(scores, key=lambda x: x["score"], reverse=True)[:10]
-    save_highscores(level, scores)
-
+# === Functions ===
 def draw_text(text, x, y, font, color=BLACK):
     surface = font.render(text, True, color)
     screen.blit(surface, (x, y))
@@ -84,92 +63,6 @@ def draw_centered_text(text, y, font, color=BLACK):
     rect = surface.get_rect(center=(512, y))
     screen.blit(surface, rect)
 
-def draw_keyboard(name_input):
-    screen.fill(WHITE)
-    draw_centered_text("Wpisz swoje imię", 50, medium_font)
-    draw_centered_text(name_input, 120, font)
-
-    keys = [
-        "A B C D E F G H I J",
-        "K L M N O P Q R S T",
-        "U V W X Y Z . < OK"
-    ]
-
-    key_w, key_h = 80, 80
-    spacing = 10
-    start_x = (1024 - (key_w + spacing) * 10 + spacing) // 2
-    start_y = 180
-
-    for row_idx, row in enumerate(keys):
-        for col_idx, char in enumerate(row.split()):
-            rect = pygame.Rect(
-                start_x + col_idx * (key_w + spacing),
-                start_y + row_idx * (key_h + spacing),
-                key_w, key_h
-            )
-            pygame.draw.rect(screen, GRAY, rect, border_radius=8)
-            draw_centered_text(char, rect.centery - 20, small_font, BLACK)
-
-def get_name_input():
-    name = ""
-    while True:
-        draw_keyboard(name)
-        pygame.display.update()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                GPIO.cleanup()
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = event.pos
-                keys = [
-                    "A B C D E F G H I J",
-                    "K L M N O P Q R S T",
-                    "U V W X Y Z . < OK"
-                ]
-                key_w, key_h = 80, 80
-                spacing = 10
-                start_x = (1024 - (key_w + spacing) * 10 + spacing) // 2
-                start_y = 180
-                for row_idx, row in enumerate(keys):
-                    for col_idx, char in enumerate(row.split()):
-                        rect = pygame.Rect(
-                            start_x + col_idx * (key_w + spacing),
-                            start_y + row_idx * (key_h + spacing),
-                            key_w, key_h
-                        )
-                        if rect.collidepoint(x, y):
-                            if char == "<":
-                                name = name[:-1]
-                            elif char == "OK":
-                                return name[:10]
-                            else:
-                                name += char
-        clock.tick(30)
-
-def show_highscores():
-    scores = load_highscores(level)
-    viewing = True
-    while viewing:
-        screen.fill(WHITE)
-        draw_centered_text(f"TOP 10 - Poziom {level}", 60, font)
-        for i, entry in enumerate(scores):
-            draw_text(f"{i+1}. {entry['name']}: {entry['score']}", 300, 140 + i * 40, small_font)
-
-        close_btn = pygame.Rect(960, 20, 40, 40)
-        pygame.draw.rect(screen, RED, close_btn, border_radius=5)
-        draw_text("X", 970, 20, small_font, WHITE)
-
-        pygame.display.update()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                GPIO.cleanup()
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if close_btn.collidepoint(event.pos):
-                    viewing = False
-
 def countdown():
     for i in range(3, 0, -1):
         screen.fill(WHITE)
@@ -177,14 +70,100 @@ def countdown():
         pygame.display.update()
         time.sleep(1)
 
+def save_score(level, name, score):
+    filename = os.path.join(SAVE_DIR, f"level_{level}.json")
+    try:
+        with open(filename, "r") as f:
+            data = json.load(f)
+    except:
+        data = []
+    data.append({"name": name, "score": score})
+    data = sorted(data, key=lambda x: x["score"], reverse=True)[:10]
+    with open(filename, "w") as f:
+        json.dump(data, f)
+
+def load_scores(level):
+    filename = os.path.join(SAVE_DIR, f"level_{level}.json")
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            return json.load(f)
+    return []
+
+def show_keyboard():
+    name = ""
+    keys = [
+        list("ABCDEF"),
+        list("GHIJKL"),
+        list("MNOPQR"),
+        list("STUVWX"),
+        list("YZ <- OK")
+    ]
+    key_size = 100
+    key_margin = 10
+    while True:
+        screen.fill(WHITE)
+        draw_centered_text("Podaj imię:", 80, medium_font)
+        draw_centered_text(name, 150, font)
+
+        for row_idx, row in enumerate(keys):
+            for col_idx, char in enumerate(row):
+                x = 50 + col_idx * (key_size + key_margin)
+                y = 220 + row_idx * (key_size + key_margin)
+                rect = pygame.Rect(x, y, key_size, key_size)
+                pygame.draw.rect(screen, GRAY, rect)
+                text_surf = small_font.render(char, True, BLACK)
+                text_rect = text_surf.get_rect(center=rect.center)
+                screen.blit(text_surf, text_rect)
+
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return ""
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = event.pos
+                for row_idx, row in enumerate(keys):
+                    for col_idx, char in enumerate(row):
+                        x = 50 + col_idx * (key_size + key_margin)
+                        y = 220 + row_idx * (key_size + key_margin)
+                        rect = pygame.Rect(x, y, key_size, key_size)
+                        if rect.collidepoint(mx, my):
+                            if char == "<-":
+                                name = name[:-1]
+                            elif char == "OK":
+                                return name.strip()[:10]
+                            else:
+                                name += char
+
+
+def show_highscores():
+    showing = True
+    while showing:
+        scores = load_scores(level)
+        screen.fill(WHITE)
+        draw_centered_text(f"TOP 10 - Poziom {level}", 60, medium_font)
+        for idx, entry in enumerate(scores):
+            draw_text(f"{idx+1}. {entry['name']} - {entry['score']}", 300, 130 + idx * 40, small_font)
+        close_btn = pygame.Rect(950, 10, 50, 50)
+        pygame.draw.rect(screen, RED, close_btn)
+        x_text = small_font.render("X", True, WHITE)
+        x_rect = x_text.get_rect(center=close_btn.center)
+        screen.blit(x_text, x_rect)
+
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if close_btn.collidepoint(event.pos):
+                    showing = False
+
+
 def game_loop():
     global score, stop_requested, level
     score = 0
     stop_requested = False
     countdown()
-
     led_time = LEVEL_TIMINGS.get(level, 1000)
-
     start_time = pygame.time.get_ticks()
     current_led = None
     led_on = False
@@ -226,7 +205,7 @@ def game_loop():
 
         stop_button_rect = pygame.Rect(800, 500, 200, 80)
         pygame.draw.rect(screen, RED, stop_button_rect)
-        draw_text("■ STOP", 830, 520, small_font, WHITE)
+        draw_text("■ STOP", 820, 520, small_font, WHITE)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -247,10 +226,11 @@ def game_loop():
     pygame.display.update()
     time.sleep(2)
 
-    scores = load_highscores(level)
-    if len(scores) < 10 or score > scores[-1]["score"]:
-        name = get_name_input()
-        add_score(level, name, score)
+    scores = load_scores(level)
+    if len(scores) < 10 or score > scores[-1]['score']:
+        name = show_keyboard()
+        if name:
+            save_score(level, name, score)
 
 def menu():
     global level
@@ -267,11 +247,11 @@ def menu():
 
         start_button_rect = pygame.Rect(300, 400, 300, 90)
         pygame.draw.rect(screen, BLUE, start_button_rect, border_radius=12)
-        draw_text("▶ START", 340, 420, small_font, WHITE)
+        draw_text("▶ START", 330, 420, small_font, WHITE)
 
-        highscore_button_rect = pygame.Rect(620, 400, 150, 90)
+        highscore_button_rect = pygame.Rect(620, 400, 200, 90)
         pygame.draw.rect(screen, GRAY, highscore_button_rect, border_radius=12)
-        draw_text("TOP 10", 640, 420, small_font, BLACK)
+        draw_text("Highscore", 635, 420, small_font)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
