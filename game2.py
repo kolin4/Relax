@@ -118,7 +118,7 @@ def draw_keyboard():
     ok_rect = pygame.Rect(550, 500, 180, 50)
     pygame.draw.rect(screen, RED, back_rect, border_radius=8)
     pygame.draw.rect(screen, GREEN, ok_rect, border_radius=8)
-    screen.blit(small_font.render("← BACK", True, WHITE), (back_rect.x + 20, back_rect.y + 10))
+    screen.blit(small_font.render("←", True, WHITE), (back_rect.x + 20, back_rect.y + 10))
     screen.blit(small_font.render("OK", True, WHITE), (ok_rect.x + 60, ok_rect.y + 10))
     return key_rects, back_rect, ok_rect
 
