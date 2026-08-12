@@ -164,6 +164,7 @@ class GameScreen:
         self.correct_flash = {}   # index -> znacznik czasu (ms), do kiedy migać
         self.wrong_flash = {}
         self.finished_at = None
+        self.prev_pressed = [False] * cfg.NUM_PADS  # do wykrywania pojedynczego kliknięcia
 
         self.stop_button = ui.Button((cfg.SCREEN_WIDTH - 220, cfg.SCREEN_HEIGHT - 100, 180, 70),
                                       "STOP", fonts.small, bg=cfg.DANGER)
@@ -223,24 +224,30 @@ class GameScreen:
                 self.combo = 0
                 self.multiplier = 1.0
 
-        # sprawdz wcisniete przyciski
+        # sprawdz przyciski - liczy sie tylko moment wcisniecia (zbocze
+        # narastajace), nie samo trzymanie, wiec przytrzymanie przycisku
+        # nie naliczy punktow (dodatnich ani ujemnych) w kolko
+        currently_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
         for i in range(cfg.NUM_PADS):
-            if self.controller.is_pressed(i):
-                if i in self.active_pads:
-                    self.score += int(round(1 * self.multiplier))
-                    self.combo += 1
-                    self.multiplier = min(
-                        cfg.MAX_COMBO_MULTIPLIER,
-                        1.0 + (self.combo // cfg.COMBO_HITS_PER_STEP) * cfg.COMBO_STEP
-                    )
-                    self.controller.set_led(i, False)
-                    self.active_pads.discard(i)
-                    self.correct_flash[i] = now + 150
-                else:
-                    self.score -= 1
-                    self.combo = 0
-                    self.multiplier = 1.0
-                    self.wrong_flash[i] = now + 150
+            just_pressed = currently_pressed[i] and not self.prev_pressed[i]
+            if not just_pressed:
+                continue
+            if i in self.active_pads:
+                self.score += int(round(1 * self.multiplier))
+                self.combo += 1
+                self.multiplier = min(
+                    cfg.MAX_COMBO_MULTIPLIER,
+                    1.0 + (self.combo // cfg.COMBO_HITS_PER_STEP) * cfg.COMBO_STEP
+                )
+                self.controller.set_led(i, False)
+                self.active_pads.discard(i)
+                self.correct_flash[i] = now + 150
+            else:
+                self.score -= 1
+                self.combo = 0
+                self.multiplier = 1.0
+                self.wrong_flash[i] = now + 150
+        self.prev_pressed = currently_pressed
 
         self.correct_flash = {k: v for k, v in self.correct_flash.items() if v > now}
         self.wrong_flash = {k: v for k, v in self.wrong_flash.items() if v > now}
@@ -252,6 +259,9 @@ class GameScreen:
         self.score = 0
         self.combo = 0
         self.multiplier = 1.0
+        # jesli ktos trzyma przycisk juz w momencie startu (np. od odliczania),
+        # nie traktuj tego jako "swiezego" kliknieca w pierwszej klatce
+        self.prev_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
 
     def _end_game(self):
         self.controller.all_off()
@@ -276,10 +286,15 @@ class GameScreen:
         remaining = max(0.0, cfg.GAME_DURATION - elapsed)
 
         ui.draw_text(screen, f"Wynik: {self.score}", 40, 24, self.fonts.medium)
-        ui.draw_text(screen, f"Poziom {self.level}", 400, 24, self.fonts.medium, cfg.TEXT_MUTED)
-        combo_color = cfg.SUCCESS if self.multiplier > 1 else cfg.TEXT_MUTED
-        ui.draw_text(screen, f"Combo x{self.multiplier:.1f}", 400, 60, self.fonts.small, combo_color)
         ui.draw_centered_text(screen, f"{remaining:04.1f}s", 60, self.fonts.digital, cfg.TEXT_DARK)
+
+        # poziom i combo w prawym gornym rogu, z dala od centralnego timera
+        combo_color = cfg.SUCCESS if self.multiplier > 1 else cfg.TEXT_MUTED
+        level_surf = self.fonts.medium.render(f"Poziom {self.level}", True, cfg.TEXT_MUTED)
+        combo_surf = self.fonts.small.render(f"Combo x{self.multiplier:.1f}", True, combo_color)
+        right_edge = cfg.SCREEN_WIDTH - 40
+        screen.blit(level_surf, (right_edge - level_surf.get_width(), 24))
+        screen.blit(combo_surf, (right_edge - combo_surf.get_width(), 62))
 
         pad_area = pygame.Rect(112, 160, 800, 300)
         ui.draw_pad_grid(screen, pad_area, self.active_pads,
