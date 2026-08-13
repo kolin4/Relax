@@ -7,6 +7,7 @@ podstawie atrybutu `next_screen`.
 Uruchomienie: python3 main.py
 """
 import sys
+import subprocess
 import pygame
 
 import config as cfg
@@ -37,6 +38,7 @@ def main():
     controller = ButtonLedController(cfg.BUTTON_PINS, cfg.LED_PINS)
 
     current = screens.MenuScreen(fonts, level=1)
+    splash_dismissed = False
 
     try:
         while True:
@@ -64,6 +66,19 @@ def main():
 
             current.draw(screen_surface)
             pygame.display.update()
+
+            # Dokladnie w momencie, gdy pierwsza klatka menu jest juz
+            # narysowana na ekranie, zamykamy splash Plymouth (jesli byl
+            # skonfigurowany, zeby czekac na to zamiast znikac sam po
+            # zakonczeniu bootowania systemu). Dzieki temu przejscie ze
+            # splasha do gry jest plynne, bez czarnego ekranu, niezaleznie
+            # od tego jak dlugo trwal caly proces startu Pi. Bezpieczne
+            # do wywolania takze wtedy, gdy plymouth juz nie dziala.
+            if not splash_dismissed:
+                subprocess.Popen(["sudo", "plymouth", "quit"],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                splash_dismissed = True
+
             clock.tick(cfg.FPS)
 
             if current.next_screen is not None:
