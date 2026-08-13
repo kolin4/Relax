@@ -296,7 +296,7 @@ class GameScreen:
         screen.blit(level_surf, (right_edge - level_surf.get_width(), 24))
         screen.blit(combo_surf, (right_edge - combo_surf.get_width(), 62))
 
-        pad_area = pygame.Rect(112, 160, 800, 300)
+        pad_area = pygame.Rect(272, 140, 480, 340)
         ui.draw_pad_grid(screen, pad_area, self.active_pads,
                           self.correct_flash, self.wrong_flash, self.fonts.small)
 

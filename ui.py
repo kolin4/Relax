@@ -108,22 +108,39 @@ class OnScreenKeyboard:
 
 def draw_pad_grid(screen, rect, active_pads, correct_flash, wrong_flash, font):
     """
-    Rysuje siatkę 4x2 reprezentującą 8 fizycznych par (przycisk + LED).
-    active_pads: set indeksów aktualnie świecących się diod
+    Rysuje 8 pól odzwierciedlających fizyczny układ przycisków na obudowie:
+    jeden przycisk nad wyświetlaczem (1), jeden pod (5), oraz po trzy
+    pionowo z każdej strony (2-3-4 po lewej, 8-7-6 po prawej), gdzie
+    środkowe przyciski (3 i 7) są wysunięte bardziej na zewnątrz niż
+    górny i dolny z tej samej strony. Wszystkie pola mają ten sam rozmiar.
+
+    active_pads: set indeksów (0-7) aktualnie świecących się diod
     correct_flash / wrong_flash: sety indeksów z krótkim błyskiem po trafieniu/pudle
     """
     rect = pygame.Rect(rect)
-    cols, rows = 4, 2
-    gap = 16
-    pad_w = (rect.width - (cols - 1) * gap) // cols
-    pad_h = (rect.height - (rows - 1) * gap) // rows
 
-    for i in range(cfg.NUM_PADS):
-        col = i % cols
-        row = i // cols
-        x = rect.x + col * (pad_w + gap)
-        y = rect.y + row * (pad_h + gap)
-        pad_rect = pygame.Rect(x, y, pad_w, pad_h)
+    # pozycje znormalizowane (0-1) względem obszaru rect, w kolejności
+    # indeksów 0-7 odpowiadającej numeracji 1-8 z panelu (zgodnie z ruchem
+    # wskazówek zegara: gora, lewy-gorny, lewy-srodkowy, lewy-dolny, dol,
+    # prawy-dolny, prawy-srodkowy, prawy-gorny)
+    nw, nh = 0.1364, 0.1389
+    PAD_LAYOUT = [
+        (0.4318, 0.0000),  # 1 - nad wyświetlaczem
+        (0.0682, 0.1389),  # 2 - lewy górny
+        (0.0000, 0.4306),  # 3 - lewy środkowy (wysunięty)
+        (0.0682, 0.7222),  # 4 - lewy dolny
+        (0.4318, 0.8611),  # 5 - pod wyświetlaczem
+        (0.7955, 0.7222),  # 6 - prawy dolny
+        (0.8636, 0.4306),  # 7 - prawy środkowy (wysunięty)
+        (0.7955, 0.1389),  # 8 - prawy górny
+    ]
+
+    for i, (nx, ny) in enumerate(PAD_LAYOUT):
+        x = rect.x + nx * rect.width
+        y = rect.y + ny * rect.height
+        w = nw * rect.width
+        h = nh * rect.height
+        pad_rect = pygame.Rect(x, y, w, h)
 
         base_color = cfg.PAD_COLORS[i]
         if i in correct_flash:
@@ -135,10 +152,10 @@ def draw_pad_grid(screen, rect, active_pads, correct_flash, wrong_flash, font):
         else:
             fill = cfg.GRAY_LIGHT
 
-        pygame.draw.rect(screen, fill, pad_rect, border_radius=18)
+        pygame.draw.rect(screen, fill, pad_rect, border_radius=14)
         if i in active_pads:
-            pygame.draw.rect(screen, cfg.WHITE, pad_rect, width=4, border_radius=18)
+            pygame.draw.rect(screen, cfg.WHITE, pad_rect, width=4, border_radius=14)
 
         label_color = cfg.TEXT_DARK if fill == cfg.GRAY_LIGHT else cfg.WHITE
         label = font.render(str(i + 1), True, label_color)
-        screen.blit(label, label.get_rect(center=(pad_rect.centerx, pad_rect.bottom - 22)))
+        screen.blit(label, label.get_rect(center=pad_rect.center))
