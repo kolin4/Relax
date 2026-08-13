@@ -8,6 +8,7 @@ Przełączanie widoków odbywa się przez atrybut `next_screen`, ustawiany
 na krotkę (nazwa_ekranu, ...argumenty). Odczytuje go pętla główna w main.py.
 """
 import random
+import subprocess
 import pygame
 
 import config as cfg
@@ -38,16 +39,45 @@ class MenuScreen:
         self.highscore_button = ui.Button((cfg.SCREEN_WIDTH // 2 + 20, 420, 240, 90),
                                            "WYNIKI", fonts.title, bg=cfg.ACCENT)
 
+        # pojedyncza ikona w lewym gornym rogu, rozwija dropdown z opcjami
+        # zamkniecia gry / wylaczenia Raspberry Pi
+        self.power_icon = ui.Button((20, 20, 56, 56), "...", fonts.medium,
+                                     bg=cfg.GRAY, fg=cfg.WHITE)
+        self.menu_open = False
+        self.option_terminal = ui.Button((20, 84, 260, 56),
+                                          "Wyjdz do terminala", fonts.small,
+                                          bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK)
+        self.option_shutdown = ui.Button((20, 146, 260, 56),
+                                          "Wylacz Raspberry Pi", fonts.small,
+                                          bg=cfg.DANGER, fg=cfg.WHITE)
+
     def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            pos = event.pos
-            for i, btn in enumerate(self.level_buttons):
-                if btn.is_clicked(pos):
-                    self.level = i + 1
-            if self.start_button.is_clicked(pos):
-                self.next_screen = ("game", self.level)
-            elif self.highscore_button.is_clicked(pos):
-                self.next_screen = ("highscores", self.level)
+        if event.type != pygame.MOUSEBUTTONDOWN:
+            return
+        pos = event.pos
+
+        if self.menu_open:
+            # dropdown jest otwarty: albo klikamy jedna z opcji, albo
+            # cokolwiek innego, co je po prostu zamyka (bez dalszej akcji)
+            if self.option_terminal.is_clicked(pos):
+                self.next_screen = ("quit",)
+            elif self.option_shutdown.is_clicked(pos):
+                subprocess.run(["sudo", "shutdown", "-h", "now"])
+                self.next_screen = ("quit",)
+            self.menu_open = False
+            return
+
+        if self.power_icon.is_clicked(pos):
+            self.menu_open = True
+            return
+
+        for i, btn in enumerate(self.level_buttons):
+            if btn.is_clicked(pos):
+                self.level = i + 1
+        if self.start_button.is_clicked(pos):
+            self.next_screen = ("game", self.level)
+        elif self.highscore_button.is_clicked(pos):
+            self.next_screen = ("highscores", self.level)
 
     def draw(self, screen):
         screen.fill(cfg.BG)
@@ -65,6 +95,12 @@ class MenuScreen:
 
         self.start_button.draw(screen)
         self.highscore_button.draw(screen)
+
+        self.power_icon.draw(screen)
+        if self.menu_open:
+            ui.draw_card(screen, (16, 80, 268, 126), color=cfg.WHITE, radius=12)
+            self.option_terminal.draw(screen)
+            self.option_shutdown.draw(screen)
 
 
 class HighscoreScreen:

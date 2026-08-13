@@ -43,6 +43,9 @@ def main():
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return
+                # ESC jako awaryjne wyjscie z gry, niezaleznie od aktualnego ekranu
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    return
                 current.handle_event(event)
 
             if hasattr(current, "update"):
@@ -54,6 +57,8 @@ def main():
 
             if current.next_screen is not None:
                 name, *rest = current.next_screen
+                if name == "quit":
+                    return
                 level = rest[0] if rest else 1
                 score = rest[1] if len(rest) > 1 else None
                 current = make_screen(name, fonts, controller, level, score)
