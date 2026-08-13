@@ -252,13 +252,15 @@ class GameScreen:
                 self.controller.set_led(pad, True)
             self.next_light_time = now + led_time // max(1, simultaneous)
 
-        # dioda, ktora nikt nie trafil w czasie - gasnie bez punktu, combo pada
+        # dioda, ktora nikt nie trafil w czasie - gasnie, krotki czerwony
+        # blysk sygnalizuje przegapienie, combo pada
         for pad in list(self.active_pads):
             if now - self.pad_started_at[pad] >= led_time:
                 self.controller.set_led(pad, False)
                 self.active_pads.discard(pad)
                 self.combo = 0
                 self.multiplier = 1.0
+                self.wrong_flash[pad] = now + 150
 
         # sprawdz przyciski - liczy sie tylko moment wcisniecia (zbocze
         # narastajace), nie samo trzymanie, wiec przytrzymanie przycisku
@@ -332,7 +334,7 @@ class GameScreen:
         screen.blit(level_surf, (right_edge - level_surf.get_width(), 24))
         screen.blit(combo_surf, (right_edge - combo_surf.get_width(), 62))
 
-        pad_area = pygame.Rect(272, 140, 480, 340)
+        pad_area = pygame.Rect(242, 108, 540, 380)
         ui.draw_pad_grid(screen, pad_area, self.active_pads,
                           self.correct_flash, self.wrong_flash, self.fonts.small)
 

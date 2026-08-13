@@ -119,20 +119,21 @@ def draw_pad_grid(screen, rect, active_pads, correct_flash, wrong_flash, font):
     """
     rect = pygame.Rect(rect)
 
-    # pozycje znormalizowane (0-1) względem obszaru rect, w kolejności
-    # indeksów 0-7 odpowiadającej numeracji 1-8 z panelu (zgodnie z ruchem
-    # wskazówek zegara: gora, lewy-gorny, lewy-srodkowy, lewy-dolny, dol,
-    # prawy-dolny, prawy-srodkowy, prawy-gorny)
-    nw, nh = 0.1364, 0.1389
+    # pozycje znormalizowane (0-1) wzgledem obszaru rect, w kolejnosci
+    # indeksow 0-7 odpowiadajacej numeracji 1-8 z panelu (zgodnie z ruchem
+    # wskazowek zegara: gora-lewo, gora-prawo, prawo-gora, prawo-dol,
+    # dol-prawo, dol-lewo, lewo-dol, lewo-gora) - po dwa przyciski na
+    # kazdej stronie, wyswietlacz w srodku
+    nw, nh = 0.1636, 0.1667
     PAD_LAYOUT = [
-        (0.4318, 0.0000),  # 1 - nad wyświetlaczem
-        (0.0682, 0.1389),  # 2 - lewy górny
-        (0.0000, 0.4306),  # 3 - lewy środkowy (wysunięty)
-        (0.0682, 0.7222),  # 4 - lewy dolny
-        (0.4318, 0.8611),  # 5 - pod wyświetlaczem
-        (0.7955, 0.7222),  # 6 - prawy dolny
-        (0.8636, 0.4306),  # 7 - prawy środkowy (wysunięty)
-        (0.7955, 0.1389),  # 8 - prawy górny
+        (0.2960, 0.0000),  # 1 - gora lewo
+        (0.5400, 0.0000),  # 2 - gora prawo
+        (0.8364, 0.2000),  # 3 - prawo gora
+        (0.8364, 0.6000),  # 4 - prawo dol
+        (0.5400, 0.8333),  # 5 - dol prawo
+        (0.2960, 0.8333),  # 6 - dol lewo
+        (0.0000, 0.6000),  # 7 - lewo dol
+        (0.0000, 0.2000),  # 8 - lewo gora
     ]
 
     for i, (nx, ny) in enumerate(PAD_LAYOUT):
@@ -142,13 +143,14 @@ def draw_pad_grid(screen, rect, active_pads, correct_flash, wrong_flash, font):
         h = nh * rect.height
         pad_rect = pygame.Rect(x, y, w, h)
 
-        base_color = cfg.PAD_COLORS[i]
+        # jednolita kolorystyka stanu, ta sama dla wszystkich pol:
+        # zolty = trzeba kliknac, zielony = trafione, czerwony = pudlo/przegapione
         if i in correct_flash:
             fill = cfg.SUCCESS
         elif i in wrong_flash:
             fill = cfg.DANGER
         elif i in active_pads:
-            fill = base_color
+            fill = cfg.WARNING
         else:
             fill = cfg.GRAY_LIGHT
 
