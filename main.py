@@ -46,6 +46,17 @@ def main():
                 # ESC jako awaryjne wyjscie z gry, niezaleznie od aktualnego ekranu
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     return
+
+                # Na konsoli (bez X) ekran dotykowy wysyla natywne zdarzenia
+                # FINGERDOWN (wspolrzedne znormalizowane 0.0-1.0) zamiast
+                # zdarzen myszy - tlumaczymy je tutaj na MOUSEBUTTONDOWN,
+                # zeby caly istniejacy kod (przyciski, klawiatura ekranowa,
+                # dropdown) dzialal bez zmian, niezaleznie od trybu.
+                if event.type == pygame.FINGERDOWN:
+                    x = int(event.x * cfg.SCREEN_WIDTH)
+                    y = int(event.y * cfg.SCREEN_HEIGHT)
+                    event = pygame.event.Event(pygame.MOUSEBUTTONDOWN, pos=(x, y), button=1)
+
                 current.handle_event(event)
 
             if hasattr(current, "update"):
