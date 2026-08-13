@@ -24,12 +24,15 @@ COMBO_STEP = 0.5
 COMBO_HITS_PER_STEP = 3     # co ile trafień z rzędu rośnie mnożnik punktów
 
 # poziom -> (czas reakcji w ms, ile diod może świecić się jednocześnie)
+# poziomy 1-3: pojedyncza dioda, krzywa czasowa 1000 -> 800 -> 650 ms
+# poziomy 4-6: ta sama krzywa czasowa, ale dwie diody naraz (trudniejsze)
 LEVEL_TIMINGS = {
     1: (1000, 1),
     2: (800, 1),
     3: (650, 1),
-    4: (500, 2),
-    5: (350, 2),
+    4: (1000, 2),
+    5: (800, 2),
+    6: (650, 2),
 }
 NUM_LEVELS = len(LEVEL_TIMINGS)
 
