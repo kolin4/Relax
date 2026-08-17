@@ -199,6 +199,8 @@ class GameScreen:
         self.game_start_time = None
         self.correct_flash = {}   # index -> znacznik czasu (ms), do kiedy migać
         self.wrong_flash = {}
+        self.center_flash_color = None   # duzy kwadrat na srodku - kolor
+        self.center_flash_until = 0      # do kiedy go pokazywac (ms)
         self.finished_at = None
         self.prev_pressed = [False] * cfg.NUM_PADS  # do wykrywania pojedynczego kliknięcia
 
@@ -290,6 +292,8 @@ class GameScreen:
                 self.combo = 0
                 self.multiplier = 1.0
                 self.wrong_flash[pad] = now + 150
+                self.center_flash_color = cfg.DANGER
+                self.center_flash_until = now + 150
 
         # sprawdz przyciski - liczy sie tylko moment wcisniecia (zbocze
         # narastajace), nie samo trzymanie, wiec przytrzymanie przycisku
@@ -309,11 +313,15 @@ class GameScreen:
                 self.controller.set_led(i, False)
                 self.active_pads.discard(i)
                 self.correct_flash[i] = now + 150
+                self.center_flash_color = cfg.SUCCESS
+                self.center_flash_until = now + 150
             else:
                 self.score -= 1
                 self.combo = 0
                 self.multiplier = 1.0
                 self.wrong_flash[i] = now + 150
+                self.center_flash_color = cfg.DANGER
+                self.center_flash_until = now + 150
         self.prev_pressed = currently_pressed
 
         self.correct_flash = {k: v for k, v in self.correct_flash.items() if v > now}
@@ -371,5 +379,13 @@ class GameScreen:
         pad_area = pygame.Rect(242, 108, 540, 380)
         ui.draw_pad_grid(screen, pad_area, self.active_pads,
                           self.correct_flash, self.wrong_flash, self.fonts.small)
+
+        # duzy kwadrat na srodku (tam gdzie fizycznie jest wyswietlacz) -
+        # sygnalizuje trafienie (zielony) / pudlo lub przegapienie (czerwony)
+        if self.center_flash_color is not None and pygame.time.get_ticks() < self.center_flash_until:
+            size = 140
+            center_rect = pygame.Rect(0, 0, size, size)
+            center_rect.center = pad_area.center
+            pygame.draw.rect(screen, self.center_flash_color, center_rect, border_radius=16)
 
         self.stop_button.draw(screen)
