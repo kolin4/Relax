@@ -337,11 +337,11 @@ class GameScreen:
         screen.fill(cfg.BG)
 
         if self.state == self.STATE_COUNTDOWN:
-            ui.draw_centered_text(screen, str(max(1, self.countdown_value)), 44, self.fonts.huge)
-            ui.draw_centered_text(screen, "Test przyciskow...", 84, self.fonts.small, cfg.TEXT_MUTED)
             pad_area = pygame.Rect(242, 108, 540, 380)
             ui.draw_pad_grid(screen, pad_area, self.led_test_active_pads,
                               {}, {}, self.fonts.small)
+            ui.draw_centered_text(screen, str(max(1, self.countdown_value)),
+                                   cfg.SCREEN_HEIGHT // 2, self.fonts.huge)
             return
 
         if self.state == self.STATE_FINISHED:
