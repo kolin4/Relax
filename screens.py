@@ -229,12 +229,16 @@ class GameScreen:
 
         if self.state == self.STATE_COUNTDOWN:
             elapsed = now - self.countdown_start
-            self.countdown_value = 3 - elapsed // 1000
+            tier_count = len(self.LED_TEST_TIERS)
+            tier_duration = cfg.COUNTDOWN_TIER_MS
+            total_duration = tier_duration * tier_count
 
-            # animacja testu LED: dzielimy 3-sekundowe odliczanie na 4 rowne
-            # piętra, kazde na chwile zapala 2 diody (fizycznie i na ekranie)
-            tier_duration = 3000 // len(self.LED_TEST_TIERS)
-            tier_index = min(len(self.LED_TEST_TIERS) - 1, elapsed // tier_duration)
+            # jedno zrodlo prawdy: i wyswietlana cyfra, i aktualne pietro LED
+            # licza sie z tej samej zmiennej tier_index, wiec zmieniaja sie
+            # zawsze w tej samej klatce (4 pietra -> odliczanie 4,3,2,1)
+            tier_index = min(tier_count - 1, elapsed // tier_duration)
+            self.countdown_value = tier_count - tier_index
+
             if tier_index != self.led_test_tier_index:
                 # gasimy poprzednie piętro, zapalamy nowe
                 for pad in self.led_test_active_pads:
@@ -244,7 +248,7 @@ class GameScreen:
                 for pad in self.led_test_active_pads:
                     self.controller.set_led(pad, True)
 
-            if self.countdown_value <= 0:
+            if elapsed >= total_duration:
                 self._start_playing(now)
             return
 
