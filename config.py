@@ -24,6 +24,15 @@ COMBO_STEP = 0.5
 COMBO_HITS_PER_STEP = 3     # co ile trafień z rzędu rośnie mnożnik punktów
 COUNTDOWN_TIER_MS = 800     # czas trwania jednego pietra animacji testu LED (ms)
 
+# === Tryb Pamiec (Simon Says) ===
+MEMORY_START_LENGTH = 4      # dlugosc sekwencji na start
+MEMORY_MAX_LENGTH = 8        # po tej dlugosci sekwencja przestaje rosnac, zaczyna przyspieszac tempo
+MEMORY_LIVES = 3             # ile pomylek mozna popelnic zanim gra sie skonczy
+MEMORY_FLASH_ON_MS = 500       # (faza 1) jak dlugo swieci kazdy krok sekwencji
+MEMORY_FLASH_ON_MS_MIN = 200   # dolna granica tempa w fazie 2 (przyspieszanie)
+MEMORY_FLASH_GAP_MS = 200      # przerwa miedzy krokami sekwencji (stala)
+MEMORY_SPEEDUP_STEP_MS = 40    # o ile przyspiesza tempo za kazda udana runde w fazie 2
+
 # poziom -> (czas reakcji w ms, ile diod może świecić się jednocześnie)
 # poziomy 1-3: pojedyncza dioda, krzywa czasowa 1000 -> 800 -> 650 ms
 # poziomy 4-6: ta sama krzywa czasowa, ale dwie diody naraz (trudniejsze)

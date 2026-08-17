@@ -106,43 +106,57 @@ class OnScreenKeyboard:
         return None
 
 
+# pozycje znormalizowane (0-1) w kolejnosci indeksow 0-7 odpowiadajacej
+# numeracji 1-8 z panelu (zgodnie z ruchem wskazowek zegara: gora-lewo,
+# gora-prawo, prawo-gora, prawo-dol, dol-prawo, dol-lewo, lewo-dol,
+# lewo-gora) - po dwa przyciski na kazdej stronie, wyswietlacz w srodku
+PAD_NW, PAD_NH = 0.1636, 0.1667
+PAD_LAYOUT = [
+    (0.2960, 0.0000),  # 1 - gora lewo
+    (0.5400, 0.0000),  # 2 - gora prawo
+    (0.8364, 0.2000),  # 3 - prawo gora
+    (0.8364, 0.6000),  # 4 - prawo dol
+    (0.5400, 0.8333),  # 5 - dol prawo
+    (0.2960, 0.8333),  # 6 - dol lewo
+    (0.0000, 0.6000),  # 7 - lewo dol
+    (0.0000, 0.2000),  # 8 - lewo gora
+]
+
+
+def get_pad_rects(rect):
+    """Zwraca liste 8 pygame.Rect (w kolejnosci indeksow 0-7) dla danego
+    obszaru - uzywane zarowno do rysowania, jak i do wykrywania kliknięć
+    (hit-testing) na konkretne pole."""
+    rect = pygame.Rect(rect)
+    rects = []
+    for nx, ny in PAD_LAYOUT:
+        x = rect.x + nx * rect.width
+        y = rect.y + ny * rect.height
+        w = PAD_NW * rect.width
+        h = PAD_NH * rect.height
+        rects.append(pygame.Rect(x, y, w, h))
+    return rects
+
+
+def pad_index_at(rect, pos):
+    """Zwraca indeks (0-7) pola pod danym punktem, albo None jesli klik
+    nie trafil w zadne pole."""
+    for i, pad_rect in enumerate(get_pad_rects(rect)):
+        if pad_rect.collidepoint(pos):
+            return i
+    return None
+
+
 def draw_pad_grid(screen, rect, active_pads, correct_flash, wrong_flash, font):
     """
     Rysuje 8 pól odzwierciedlających fizyczny układ przycisków na obudowie:
-    jeden przycisk nad wyświetlaczem (1), jeden pod (5), oraz po trzy
-    pionowo z każdej strony (2-3-4 po lewej, 8-7-6 po prawej), gdzie
-    środkowe przyciski (3 i 7) są wysunięte bardziej na zewnątrz niż
-    górny i dolny z tej samej strony. Wszystkie pola mają ten sam rozmiar.
+    2 gora / 2 dol / 2 lewo / 2 prawo wokol centralnego wyswietlacza.
+    Wszystkie pola maja ten sam rozmiar.
 
     active_pads: set indeksów (0-7) aktualnie świecących się diod
     correct_flash / wrong_flash: sety indeksów z krótkim błyskiem po trafieniu/pudle
     """
-    rect = pygame.Rect(rect)
-
-    # pozycje znormalizowane (0-1) wzgledem obszaru rect, w kolejnosci
-    # indeksow 0-7 odpowiadajacej numeracji 1-8 z panelu (zgodnie z ruchem
-    # wskazowek zegara: gora-lewo, gora-prawo, prawo-gora, prawo-dol,
-    # dol-prawo, dol-lewo, lewo-dol, lewo-gora) - po dwa przyciski na
-    # kazdej stronie, wyswietlacz w srodku
-    nw, nh = 0.1636, 0.1667
-    PAD_LAYOUT = [
-        (0.2960, 0.0000),  # 1 - gora lewo
-        (0.5400, 0.0000),  # 2 - gora prawo
-        (0.8364, 0.2000),  # 3 - prawo gora
-        (0.8364, 0.6000),  # 4 - prawo dol
-        (0.5400, 0.8333),  # 5 - dol prawo
-        (0.2960, 0.8333),  # 6 - dol lewo
-        (0.0000, 0.6000),  # 7 - lewo dol
-        (0.0000, 0.2000),  # 8 - lewo gora
-    ]
-
-    for i, (nx, ny) in enumerate(PAD_LAYOUT):
-        x = rect.x + nx * rect.width
-        y = rect.y + ny * rect.height
-        w = nw * rect.width
-        h = nh * rect.height
-        pad_rect = pygame.Rect(x, y, w, h)
-
+    for i, pad_rect in enumerate(get_pad_rects(rect)):
         # jednolita kolorystyka stanu, ta sama dla wszystkich pol:
         # zolty = trzeba kliknac, zielony = trafione, czerwony = pudlo/przegapione
         if i in correct_flash:

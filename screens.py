@@ -17,9 +17,10 @@ import highscores as hs
 
 
 class MenuScreen:
-    def __init__(self, fonts, level):
+    def __init__(self, fonts, level, mode="reaction"):
         self.fonts = fonts
         self.level = level
+        self.mode = mode  # "reaction" albo "memory"
         self.next_screen = None
 
         self.level_buttons = []
@@ -28,7 +29,7 @@ class MenuScreen:
         total_w = cfg.NUM_LEVELS * card_w + (cfg.NUM_LEVELS - 1) * gap
         start_x = (cfg.SCREEN_WIDTH - total_w) // 2
         for i in range(cfg.NUM_LEVELS):
-            rect = (start_x + i * (card_w + gap), 190, card_w, card_h)
+            rect = (start_x + i * (card_w + gap), 220, card_w, card_h)
             self.level_buttons.append(
                 ui.Button(rect, str(i + 1), fonts.medium,
                           bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK, bg_active=cfg.ACCENT)
@@ -38,6 +39,14 @@ class MenuScreen:
                                        "START", fonts.title, bg=cfg.SUCCESS)
         self.highscore_button = ui.Button((cfg.SCREEN_WIDTH // 2 + 20, 420, 240, 90),
                                            "WYNIKI", fonts.title, bg=cfg.ACCENT)
+
+        # przelacznik trybu gry
+        self.mode_reaction_btn = ui.Button((cfg.SCREEN_WIDTH // 2 - 220, 150, 210, 56),
+                                            "Reaction Tester", fonts.small,
+                                            bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK, bg_active=cfg.ACCENT)
+        self.mode_memory_btn = ui.Button((cfg.SCREEN_WIDTH // 2 + 10, 150, 210, 56),
+                                          "Pamiec", fonts.small,
+                                          bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK, bg_active=cfg.ACCENT)
 
         # pojedyncza ikona w lewym gornym rogu, rozwija dropdown z opcjami
         # zamkniecia gry / wylaczenia Raspberry Pi
@@ -71,27 +80,51 @@ class MenuScreen:
             self.menu_open = True
             return
 
-        for i, btn in enumerate(self.level_buttons):
-            if btn.is_clicked(pos):
-                self.level = i + 1
-        if self.start_button.is_clicked(pos):
-            self.next_screen = ("game", self.level)
-        elif self.highscore_button.is_clicked(pos):
-            self.next_screen = ("highscores", self.level)
+        if self.mode_reaction_btn.is_clicked(pos):
+            self.mode = "reaction"
+            return
+        if self.mode_memory_btn.is_clicked(pos):
+            self.mode = "memory"
+            return
+
+        if self.mode == "reaction":
+            for i, btn in enumerate(self.level_buttons):
+                if btn.is_clicked(pos):
+                    self.level = i + 1
+            if self.start_button.is_clicked(pos):
+                self.next_screen = ("game", self.level)
+            elif self.highscore_button.is_clicked(pos):
+                self.next_screen = ("highscores", self.level)
+        else:
+            if self.start_button.is_clicked(pos):
+                self.next_screen = ("memory",)
+            elif self.highscore_button.is_clicked(pos):
+                self.next_screen = ("highscores", "memory")
 
     def draw(self, screen):
         screen.fill(cfg.BG)
-        ui.draw_centered_text(screen, "Reaction Tester", 70, self.fonts.title, cfg.TEXT_DARK)
-        ui.draw_centered_text(screen, "Wybierz poziom trudnosci", 130, self.fonts.small, cfg.TEXT_MUTED)
+        ui.draw_centered_text(screen, "Reaction Tester", 60, self.fonts.title, cfg.TEXT_DARK)
 
-        for i, btn in enumerate(self.level_buttons):
-            btn.draw(screen, active=(self.level == i + 1))
+        self.mode_reaction_btn.draw(screen, active=(self.mode == "reaction"))
+        self.mode_memory_btn.draw(screen, active=(self.mode == "memory"))
 
-        timing_ms, simultaneous = cfg.LEVEL_TIMINGS[self.level]
-        info = f"Czas reakcji: {timing_ms} ms"
-        if simultaneous > 1:
-            info += "  *  2 diody naraz"
-        ui.draw_centered_text(screen, info, 320, self.fonts.small, cfg.TEXT_MUTED)
+        if self.mode == "reaction":
+            ui.draw_centered_text(screen, "Wybierz poziom trudnosci", 200, self.fonts.small, cfg.TEXT_MUTED)
+            for i, btn in enumerate(self.level_buttons):
+                btn.draw(screen, active=(self.level == i + 1))
+
+            timing_ms, simultaneous = cfg.LEVEL_TIMINGS[self.level]
+            info = f"Czas reakcji: {timing_ms} ms"
+            if simultaneous > 1:
+                info += "  *  2 diody naraz"
+            ui.draw_centered_text(screen, info, 340, self.fonts.small, cfg.TEXT_MUTED)
+        else:
+            ui.draw_centered_text(screen, "Zapamietaj i powtorz sekwencje przyciskow", 220,
+                                   self.fonts.small, cfg.TEXT_MUTED)
+            ui.draw_centered_text(screen,
+                                   f"Start: {cfg.MEMORY_START_LENGTH} krokow  *  "
+                                   f"3 zycia  *  przyspieszenie po {cfg.MEMORY_MAX_LENGTH} krokach",
+                                   260, self.fonts.small, cfg.TEXT_MUTED)
 
         self.start_button.draw(screen)
         self.highscore_button.draw(screen)
@@ -113,12 +146,14 @@ class HighscoreScreen:
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.close_button.is_clicked(event.pos):
-            self.next_screen = ("menu", self.level)
+            # z tabeli wynikow trybu Pamiec wracamy do menu w trybie domyslnym (reaction)
+            back_level = 1 if self.level == "memory" else self.level
+            self.next_screen = ("menu", back_level)
 
     def draw(self, screen):
         screen.fill(cfg.BG)
-        ui.draw_centered_text(screen, f"NAJLEPSZE WYNIKI - POZIOM {self.level}", 60,
-                               self.fonts.title, cfg.TEXT_DARK)
+        title = "NAJLEPSZE WYNIKI - PAMIEC" if self.level == "memory" else f"NAJLEPSZE WYNIKI - POZIOM {self.level}"
+        ui.draw_centered_text(screen, title, 60, self.fonts.title, cfg.TEXT_DARK)
 
         card = pygame.Rect(212, 130, 600, 420)
         ui.draw_card(screen, card)
@@ -386,6 +421,245 @@ class GameScreen:
             size = 140
             center_rect = pygame.Rect(0, 0, size, size)
             center_rect.center = pad_area.center
+            pygame.draw.rect(screen, self.center_flash_color, center_rect, border_radius=16)
+
+        self.stop_button.draw(screen)
+
+
+class MemoryScreen:
+    """Tryb 'Pamiec' (Simon Says): gra pokazuje sekwencje przyciskow,
+    user musi ja odtworzyc. Sekwencja rosnie co udana runde do
+    MEMORY_MAX_LENGTH (faza 1), potem tempo pokazywania przyspiesza co
+    runde (faza 2). 3 pomylki (zycia) konczą gre."""
+
+    STATE_COUNTDOWN = "countdown"
+    STATE_SHOWING = "showing"
+    STATE_INPUT = "input"
+    STATE_PAUSE = "pause"       # krotka przerwa miedzy runda a nastepnym pokazem
+    STATE_FINISHED = "finished"
+
+    PAUSE_MS = 500
+
+    def __init__(self, fonts, controller):
+        self.fonts = fonts
+        self.controller = controller
+        self.next_screen = None
+
+        self.state = self.STATE_COUNTDOWN
+        self.countdown_start = pygame.time.get_ticks()
+        self.countdown_value = 4
+
+        # animacja testu LED przy starcie - identyczna jak w GameScreen
+        self.LED_TEST_TIERS = [[0, 1], [2, 7], [3, 6], [4, 5]]
+        self.led_test_tier_index = -1
+        self.led_test_active_pads = set()
+
+        self.sequence = []
+        self.step_ms = cfg.MEMORY_FLASH_ON_MS
+        self.lives = cfg.MEMORY_LIVES
+        self.score = 0
+
+        self.show_index = 0
+        self.show_step_state = "on"
+        self.show_step_started_at = 0
+
+        self.input_index = 0
+        self.prev_pressed = [False] * cfg.NUM_PADS
+
+        self.correct_flash = {}
+        self.wrong_flash = {}
+        self.center_flash_color = None
+        self.center_flash_until = 0
+
+        self.pause_started_at = 0
+        self.pause_next_action = None  # "show_next_round" albo "retry_same"
+        self.life_lost_this_pause = False
+
+        self.finished_at = None
+
+        self.stop_button = ui.Button((cfg.SCREEN_WIDTH - 220, cfg.SCREEN_HEIGHT - 100, 180, 70),
+                                      "STOP", fonts.small, bg=cfg.DANGER)
+        self.pad_area = pygame.Rect(242, 108, 540, 380)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.stop_button.is_clicked(event.pos):
+                self._end_game()
+
+    def update(self):
+        now = pygame.time.get_ticks()
+
+        if self.state == self.STATE_COUNTDOWN:
+            self._update_countdown(now)
+            return
+        if self.state == self.STATE_SHOWING:
+            self._update_showing(now)
+            return
+        if self.state == self.STATE_INPUT:
+            self._update_input(now)
+            return
+        if self.state == self.STATE_PAUSE:
+            self._update_pause(now)
+            return
+        if self.state == self.STATE_FINISHED:
+            if now - self.finished_at > 1500:
+                if hs.qualifies("memory", self.score):
+                    self.next_screen = ("name_entry", "memory", self.score)
+                else:
+                    self.next_screen = ("menu", 1)
+            return
+
+    # --- odliczanie z testem LED (identyczne jak w GameScreen) ---
+    def _update_countdown(self, now):
+        elapsed = now - self.countdown_start
+        tier_count = len(self.LED_TEST_TIERS)
+        tier_duration = cfg.COUNTDOWN_TIER_MS
+        total_duration = tier_duration * tier_count
+
+        tier_index = min(tier_count - 1, elapsed // tier_duration)
+        self.countdown_value = tier_count - tier_index
+
+        if tier_index != self.led_test_tier_index:
+            for pad in self.led_test_active_pads:
+                self.controller.set_led(pad, False)
+            self.led_test_tier_index = tier_index
+            self.led_test_active_pads = set(self.LED_TEST_TIERS[tier_index])
+            for pad in self.led_test_active_pads:
+                self.controller.set_led(pad, True)
+
+        if elapsed >= total_duration:
+            self.controller.all_off()
+            self.sequence = [random.randrange(cfg.NUM_PADS) for _ in range(cfg.MEMORY_START_LENGTH)]
+            self._begin_showing(now)
+
+    # --- pokaz sekwencji ---
+    def _begin_showing(self, now):
+        self.state = self.STATE_SHOWING
+        self.show_index = 0
+        self.show_step_state = "on"
+        self.show_step_started_at = now
+        self.controller.set_led(self.sequence[0], True)
+
+    def _update_showing(self, now):
+        pad = self.sequence[self.show_index]
+        if self.show_step_state == "on":
+            if now - self.show_step_started_at >= self.step_ms:
+                self.controller.set_led(pad, False)
+                self.show_step_state = "off"
+                self.show_step_started_at = now
+        else:
+            if now - self.show_step_started_at >= cfg.MEMORY_FLASH_GAP_MS:
+                self.show_index += 1
+                if self.show_index >= len(self.sequence):
+                    self.state = self.STATE_INPUT
+                    self.input_index = 0
+                    self.prev_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
+                else:
+                    next_pad = self.sequence[self.show_index]
+                    self.controller.set_led(next_pad, True)
+                    self.show_step_state = "on"
+                    self.show_step_started_at = now
+
+    def _active_show_pads(self):
+        if self.state == self.STATE_SHOWING and self.show_step_state == "on":
+            return {self.sequence[self.show_index]}
+        return set()
+
+    # --- wprowadzanie przez usera ---
+    def _update_input(self, now):
+        currently_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
+        for i in range(cfg.NUM_PADS):
+            just_pressed = currently_pressed[i] and not self.prev_pressed[i]
+            if not just_pressed:
+                continue
+            expected = self.sequence[self.input_index]
+            if i == expected:
+                self.correct_flash[i] = now + 150
+                self.center_flash_color = cfg.SUCCESS
+                self.center_flash_until = now + 150
+                self.input_index += 1
+                if self.input_index >= len(self.sequence):
+                    self._on_round_complete(now)
+            else:
+                self.wrong_flash[i] = now + 150
+                self.center_flash_color = cfg.DANGER
+                self.center_flash_until = now + 150
+                self._on_wrong_press(now)
+            break  # jeden klik na klatke wystarczy do obslugi
+        self.prev_pressed = currently_pressed
+
+        self.correct_flash = {k: v for k, v in self.correct_flash.items() if v > now}
+        self.wrong_flash = {k: v for k, v in self.wrong_flash.items() if v > now}
+
+    def _on_round_complete(self, now):
+        self.score += 1
+        if len(self.sequence) < cfg.MEMORY_MAX_LENGTH:
+            # faza 1: sekwencja rosnie o jeden krok
+            self.sequence.append(random.randrange(cfg.NUM_PADS))
+        else:
+            # faza 2: dlugosc juz maksymalna - przyspieszamy tempo,
+            # losujemy nowa sekwencje tej samej (maksymalnej) dlugosci
+            self.step_ms = max(cfg.MEMORY_FLASH_ON_MS_MIN,
+                                self.step_ms - cfg.MEMORY_SPEEDUP_STEP_MS)
+            self.sequence = [random.randrange(cfg.NUM_PADS) for _ in range(cfg.MEMORY_MAX_LENGTH)]
+        self.pause_next_action = "show_next_round"
+        self.pause_started_at = now
+        self.state = self.STATE_PAUSE
+
+    def _on_wrong_press(self, now):
+        self.lives -= 1
+        if self.lives <= 0:
+            self._end_game()
+            return
+        self.pause_next_action = "retry_same"
+        self.pause_started_at = now
+        self.state = self.STATE_PAUSE
+
+    def _update_pause(self, now):
+        if now - self.pause_started_at >= self.PAUSE_MS:
+            if self.pause_next_action in ("show_next_round", "retry_same"):
+                self._begin_showing(now)
+
+    def _end_game(self):
+        self.controller.all_off()
+        self.state = self.STATE_FINISHED
+        self.finished_at = pygame.time.get_ticks()
+
+    def draw(self, screen):
+        screen.fill(cfg.BG)
+
+        if self.state == self.STATE_COUNTDOWN:
+            ui.draw_pad_grid(screen, self.pad_area, self.led_test_active_pads, {}, {}, self.fonts.small)
+            ui.draw_centered_text(screen, str(max(1, self.countdown_value)),
+                                   cfg.SCREEN_HEIGHT // 2, self.fonts.huge)
+            return
+
+        if self.state == self.STATE_FINISHED:
+            ui.draw_centered_text(screen, "KONIEC GRY", 200, self.fonts.title, cfg.TEXT_DARK)
+            ui.draw_centered_text(screen, f"Dlugosc sekwencji: {self.score}", 300,
+                                   self.fonts.huge, cfg.ACCENT)
+            return
+
+        # naglowek: wynik, zycia, tempo
+        ui.draw_text(screen, f"Sekwencja: {self.score}", 40, 24, self.fonts.medium)
+        lives_text = "Zycia: " + "#" * self.lives + "-" * (cfg.MEMORY_LIVES - self.lives)
+        lives_surf = self.fonts.medium.render(lives_text, True, cfg.TEXT_MUTED)
+        right_edge = cfg.SCREEN_WIDTH - 40
+        screen.blit(lives_surf, (right_edge - lives_surf.get_width(), 24))
+
+        phase_text = "Faza 2: przyspieszenie!" if len(self.sequence) >= cfg.MEMORY_MAX_LENGTH else "Zapamietaj sekwencje"
+        if self.state == self.STATE_INPUT:
+            phase_text = "Twoja kolej!"
+        ui.draw_centered_text(screen, phase_text, 60, self.fonts.small, cfg.TEXT_MUTED)
+
+        active_pads = self._active_show_pads()
+        ui.draw_pad_grid(screen, self.pad_area, active_pads,
+                          self.correct_flash, self.wrong_flash, self.fonts.small)
+
+        if self.center_flash_color is not None and pygame.time.get_ticks() < self.center_flash_until:
+            size = 140
+            center_rect = pygame.Rect(0, 0, size, size)
+            center_rect.center = self.pad_area.center
             pygame.draw.rect(screen, self.center_flash_color, center_rect, border_radius=16)
 
         self.stop_button.draw(screen)
