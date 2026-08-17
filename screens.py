@@ -205,6 +205,17 @@ class GameScreen:
         self.stop_button = ui.Button((cfg.SCREEN_WIDTH - 220, cfg.SCREEN_HEIGHT - 100, 180, 70),
                                       "STOP", fonts.small, bg=cfg.DANGER)
 
+        # animacja testu LED podczas odliczania: piętra od góry do dołu,
+        # zgodnie z fizycznym ukladem 2 gora / 2 gorne-boki / 2 dolne-boki / 2 dol
+        self.LED_TEST_TIERS = [
+            [0, 1],  # 1, 2 - gora
+            [2, 7],  # 3, 8 - gorne boki
+            [3, 6],  # 4, 7 - dolne boki
+            [4, 5],  # 5, 6 - dol
+        ]
+        self.led_test_tier_index = -1
+        self.led_test_active_pads = set()
+
     def _timing(self):
         return cfg.LEVEL_TIMINGS.get(self.level, (1000, 1))
 
@@ -219,6 +230,20 @@ class GameScreen:
         if self.state == self.STATE_COUNTDOWN:
             elapsed = now - self.countdown_start
             self.countdown_value = 3 - elapsed // 1000
+
+            # animacja testu LED: dzielimy 3-sekundowe odliczanie na 4 rowne
+            # piętra, kazde na chwile zapala 2 diody (fizycznie i na ekranie)
+            tier_duration = 3000 // len(self.LED_TEST_TIERS)
+            tier_index = min(len(self.LED_TEST_TIERS) - 1, elapsed // tier_duration)
+            if tier_index != self.led_test_tier_index:
+                # gasimy poprzednie piętro, zapalamy nowe
+                for pad in self.led_test_active_pads:
+                    self.controller.set_led(pad, False)
+                self.led_test_tier_index = tier_index
+                self.led_test_active_pads = set(self.LED_TEST_TIERS[tier_index])
+                for pad in self.led_test_active_pads:
+                    self.controller.set_led(pad, True)
+
             if self.countdown_value <= 0:
                 self._start_playing(now)
             return
@@ -291,6 +316,7 @@ class GameScreen:
         self.wrong_flash = {k: v for k, v in self.wrong_flash.items() if v > now}
 
     def _start_playing(self, now):
+        self.controller.all_off()  # gasimy diody z animacji testowej odliczania
         self.state = self.STATE_PLAYING
         self.game_start_time = now
         self.next_light_time = now
@@ -311,7 +337,11 @@ class GameScreen:
         screen.fill(cfg.BG)
 
         if self.state == self.STATE_COUNTDOWN:
-            ui.draw_centered_text(screen, str(max(1, self.countdown_value)), 300, self.fonts.huge)
+            ui.draw_centered_text(screen, str(max(1, self.countdown_value)), 44, self.fonts.huge)
+            ui.draw_centered_text(screen, "Test przyciskow...", 84, self.fonts.small, cfg.TEXT_MUTED)
+            pad_area = pygame.Rect(242, 108, 540, 380)
+            ui.draw_pad_grid(screen, pad_area, self.led_test_active_pads,
+                              {}, {}, self.fonts.small)
             return
 
         if self.state == self.STATE_FINISHED:
