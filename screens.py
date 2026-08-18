@@ -17,6 +17,8 @@ import highscores as hs
 
 
 class MenuScreen:
+    MODE_LABELS = {"reaction": "Reaction Tester", "memory": "Pamiec"}
+
     def __init__(self, fonts, level, mode="reaction"):
         self.fonts = fonts
         self.level = level
@@ -29,7 +31,7 @@ class MenuScreen:
         total_w = cfg.NUM_LEVELS * card_w + (cfg.NUM_LEVELS - 1) * gap
         start_x = (cfg.SCREEN_WIDTH - total_w) // 2
         for i in range(cfg.NUM_LEVELS):
-            rect = (start_x + i * (card_w + gap), 220, card_w, card_h)
+            rect = (start_x + i * (card_w + gap), 200, card_w, card_h)
             self.level_buttons.append(
                 ui.Button(rect, str(i + 1), fonts.medium,
                           bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK, bg_active=cfg.ACCENT)
@@ -40,13 +42,11 @@ class MenuScreen:
         self.highscore_button = ui.Button((cfg.SCREEN_WIDTH // 2 + 20, 420, 240, 90),
                                            "WYNIKI", fonts.title, bg=cfg.ACCENT)
 
-        # przelacznik trybu gry
-        self.mode_reaction_btn = ui.Button((cfg.SCREEN_WIDTH // 2 - 220, 150, 210, 56),
-                                            "Reaction Tester", fonts.small,
-                                            bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK, bg_active=cfg.ACCENT)
-        self.mode_memory_btn = ui.Button((cfg.SCREEN_WIDTH // 2 + 10, 150, 210, 56),
-                                          "Pamiec", fonts.small,
-                                          bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK, bg_active=cfg.ACCENT)
+        # przelacznik trybu gry: strzalki < > wokol nazwy trybu
+        self.mode_left_arrow = ui.Button((296, 44, 56, 56), "<",
+                                          fonts.medium, bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK)
+        self.mode_right_arrow = ui.Button((672, 44, 56, 56), ">",
+                                           fonts.medium, bg=cfg.GRAY_LIGHT, fg=cfg.TEXT_DARK)
 
         # pojedyncza ikona w lewym gornym rogu, rozwija dropdown z opcjami
         # zamkniecia gry / wylaczenia Raspberry Pi
@@ -59,6 +59,9 @@ class MenuScreen:
         self.option_shutdown = ui.Button((20, 146, 260, 56),
                                           "Wylacz Raspberry Pi", fonts.small,
                                           bg=cfg.DANGER, fg=cfg.WHITE)
+
+    def _toggle_mode(self):
+        self.mode = "memory" if self.mode == "reaction" else "reaction"
 
     def handle_event(self, event):
         if event.type != pygame.MOUSEBUTTONDOWN:
@@ -80,11 +83,8 @@ class MenuScreen:
             self.menu_open = True
             return
 
-        if self.mode_reaction_btn.is_clicked(pos):
-            self.mode = "reaction"
-            return
-        if self.mode_memory_btn.is_clicked(pos):
-            self.mode = "memory"
+        if self.mode_left_arrow.is_clicked(pos) or self.mode_right_arrow.is_clicked(pos):
+            self._toggle_mode()
             return
 
         if self.mode == "reaction":
@@ -103,13 +103,13 @@ class MenuScreen:
 
     def draw(self, screen):
         screen.fill(cfg.BG)
-        ui.draw_centered_text(screen, "Reaction Tester", 60, self.fonts.title, cfg.TEXT_DARK)
 
-        self.mode_reaction_btn.draw(screen, active=(self.mode == "reaction"))
-        self.mode_memory_btn.draw(screen, active=(self.mode == "memory"))
+        self.mode_left_arrow.draw(screen)
+        self.mode_right_arrow.draw(screen)
+        ui.draw_centered_text(screen, self.MODE_LABELS[self.mode], 72, self.fonts.medium, cfg.TEXT_DARK)
 
         if self.mode == "reaction":
-            ui.draw_centered_text(screen, "Wybierz poziom trudnosci", 200, self.fonts.small, cfg.TEXT_MUTED)
+            ui.draw_centered_text(screen, "Wybierz poziom trudnosci", 160, self.fonts.small, cfg.TEXT_MUTED)
             for i, btn in enumerate(self.level_buttons):
                 btn.draw(screen, active=(self.level == i + 1))
 
@@ -117,14 +117,14 @@ class MenuScreen:
             info = f"Czas reakcji: {timing_ms} ms"
             if simultaneous > 1:
                 info += "  *  2 diody naraz"
-            ui.draw_centered_text(screen, info, 340, self.fonts.small, cfg.TEXT_MUTED)
+            ui.draw_centered_text(screen, info, 320, self.fonts.small, cfg.TEXT_MUTED)
         else:
-            ui.draw_centered_text(screen, "Zapamietaj i powtorz sekwencje przyciskow", 220,
+            ui.draw_centered_text(screen, "Zapamietaj i powtorz sekwencje przyciskow", 200,
                                    self.fonts.small, cfg.TEXT_MUTED)
             ui.draw_centered_text(screen,
                                    f"Start: {cfg.MEMORY_START_LENGTH} krokow  *  "
                                    f"3 zycia  *  przyspieszenie po {cfg.MEMORY_MAX_LENGTH} krokach",
-                                   260, self.fonts.small, cfg.TEXT_MUTED)
+                                   240, self.fonts.small, cfg.TEXT_MUTED)
 
         self.start_button.draw(screen)
         self.highscore_button.draw(screen)
@@ -435,10 +435,8 @@ class MemoryScreen:
     STATE_COUNTDOWN = "countdown"
     STATE_SHOWING = "showing"
     STATE_INPUT = "input"
-    STATE_PAUSE = "pause"       # krotka przerwa miedzy runda a nastepnym pokazem
+    STATE_PAUSE = "pause"       # przerwa miedzy runda a nastepnym pokazem
     STATE_FINISHED = "finished"
-
-    PAUSE_MS = 500
 
     def __init__(self, fonts, controller):
         self.fonts = fonts
@@ -616,7 +614,8 @@ class MemoryScreen:
         self.state = self.STATE_PAUSE
 
     def _update_pause(self, now):
-        if now - self.pause_started_at >= self.PAUSE_MS:
+        duration = cfg.MEMORY_LIFE_LOST_PAUSE_MS if self.pause_next_action == "retry_same" else cfg.MEMORY_ROUND_PAUSE_MS
+        if now - self.pause_started_at >= duration:
             if self.pause_next_action in ("show_next_round", "retry_same"):
                 self._begin_showing(now)
 
@@ -648,9 +647,17 @@ class MemoryScreen:
         screen.blit(lives_surf, (right_edge - lives_surf.get_width(), 24))
 
         phase_text = "Faza 2: przyspieszenie!" if len(self.sequence) >= cfg.MEMORY_MAX_LENGTH else "Zapamietaj sekwencje"
+        text_color = cfg.TEXT_MUTED
         if self.state == self.STATE_INPUT:
             phase_text = "Twoja kolej!"
-        ui.draw_centered_text(screen, phase_text, 60, self.fonts.small, cfg.TEXT_MUTED)
+        elif self.state == self.STATE_PAUSE:
+            if self.pause_next_action == "retry_same":
+                phase_text = "Pomylka! Powtarzam te sama sekwencje..."
+                text_color = cfg.DANGER
+            else:
+                phase_text = "Dobrze! Nastepna runda..."
+                text_color = cfg.SUCCESS
+        ui.draw_centered_text(screen, phase_text, 60, self.fonts.small, text_color)
 
         active_pads = self._active_show_pads()
         ui.draw_pad_grid(screen, self.pad_area, active_pads,

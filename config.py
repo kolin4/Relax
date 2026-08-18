@@ -32,6 +32,10 @@ MEMORY_FLASH_ON_MS = 500       # (faza 1) jak dlugo swieci kazdy krok sekwencji
 MEMORY_FLASH_ON_MS_MIN = 200   # dolna granica tempa w fazie 2 (przyspieszanie)
 MEMORY_FLASH_GAP_MS = 200      # przerwa miedzy krokami sekwencji (stala)
 MEMORY_SPEEDUP_STEP_MS = 40    # o ile przyspiesza tempo za kazda udana runde w fazie 2
+MEMORY_ROUND_PAUSE_MS = 500       # przerwa po udanej rundzie, przed pokazem dluzszej sekwencji
+MEMORY_LIFE_LOST_PAUSE_MS = 1600  # dluzsza przerwa po bledzie, zeby user zauwazyl pomylke
+MEMORY_ROUND_PAUSE_MS = 600      # przerwa po udanej rundzie, przed pokazem kolejnej
+MEMORY_LIFE_LOST_PAUSE_MS = 1600 # dluzsza przerwa po bledzie, zeby user zdazyl to zauwazyc
 
 # poziom -> (czas reakcji w ms, ile diod może świecić się jednocześnie)
 # poziomy 1-3: pojedyncza dioda, krzywa czasowa 1000 -> 800 -> 650 ms
