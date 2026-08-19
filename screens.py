@@ -163,11 +163,19 @@ class HighscoreScreen:
             ui.draw_centered_text(screen, "Brak wynikow - zagraj pierwszy!", 340,
                                    self.fonts.small, cfg.TEXT_MUTED)
         else:
+            # sortujemy defensywnie (na wypadek recznej edycji pliku) i liczymy
+            # pozycje tak, zeby remisy dzielily to samo miejsce w rankingu
+            scores = sorted(scores, key=lambda e: e["score"], reverse=True)
             medal_colors = {0: (196, 154, 32), 1: (140, 145, 155), 2: (170, 110, 55)}
+            last_score = None
+            rank = 0
             for idx, entry in enumerate(scores):
+                if entry["score"] != last_score:
+                    rank = idx + 1
+                    last_score = entry["score"]
                 y = 165 + idx * 38
-                color = medal_colors.get(idx, cfg.TEXT_DARK)
-                ui.draw_text(screen, f"{idx + 1}.", 250, y, self.fonts.small, color)
+                color = medal_colors.get(rank - 1, cfg.TEXT_DARK)
+                ui.draw_text(screen, f"{rank}.", 250, y, self.fonts.small, color)
                 ui.draw_text(screen, entry["name"], 310, y, self.fonts.small, color)
                 ui.draw_text(screen, str(entry["score"]), 720, y, self.fonts.small, color)
 
@@ -592,14 +600,15 @@ class MemoryScreen:
     def _on_round_complete(self, now):
         self.score += 1
         if len(self.sequence) < cfg.MEMORY_MAX_LENGTH:
-            # faza 1: sekwencja rosnie o jeden krok
+            # sekwencja rosnie o jeden krok w ramach biezacego tempa
             self.sequence.append(random.randrange(cfg.NUM_PADS))
         else:
-            # faza 2: dlugosc juz maksymalna - przyspieszamy tempo,
-            # losujemy nowa sekwencje tej samej (maksymalnej) dlugosci
+            # osiagnieto max dlugosc przy tym tempie - przyspieszamy i
+            # zaczynamy rosnac od nowa od dlugosci startowej
             self.step_ms = max(cfg.MEMORY_FLASH_ON_MS_MIN,
                                 self.step_ms - cfg.MEMORY_SPEEDUP_STEP_MS)
-            self.sequence = [random.randrange(cfg.NUM_PADS) for _ in range(cfg.MEMORY_MAX_LENGTH)]
+            self.sequence = [random.randrange(cfg.NUM_PADS)
+                              for _ in range(cfg.MEMORY_START_LENGTH)]
         self.pause_next_action = "show_next_round"
         self.pause_started_at = now
         self.state = self.STATE_PAUSE
@@ -646,7 +655,7 @@ class MemoryScreen:
         right_edge = cfg.SCREEN_WIDTH - 40
         screen.blit(lives_surf, (right_edge - lives_surf.get_width(), 24))
 
-        phase_text = "Faza 2: przyspieszenie!" if len(self.sequence) >= cfg.MEMORY_MAX_LENGTH else "Zapamietaj sekwencje"
+        phase_text = "Faza 2: przyspieszenie!" if self.step_ms < cfg.MEMORY_FLASH_ON_MS else "Zapamietaj sekwencje"
         text_color = cfg.TEXT_MUTED
         if self.state == self.STATE_INPUT:
             phase_text = "Twoja kolej!"
