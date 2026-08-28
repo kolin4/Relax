@@ -17,12 +17,13 @@ import highscores as hs
 
 
 class MenuScreen:
-    MODE_LABELS = {"reaction": "Reaction Tester", "memory": "Pamiec"}
+    MODES = ["reaction", "memory", "duel"]
+    MODE_LABELS = {"reaction": "Reaction Tester", "memory": "Pamiec", "duel": "Pojedynek"}
 
     def __init__(self, fonts, level, mode="reaction"):
         self.fonts = fonts
         self.level = level
-        self.mode = mode  # "reaction" albo "memory"
+        self.mode = mode  # "reaction" / "memory" / "duel"
         self.next_screen = None
 
         self.level_buttons = []
@@ -41,6 +42,8 @@ class MenuScreen:
                                        "START", fonts.title, bg=cfg.SUCCESS)
         self.highscore_button = ui.Button((cfg.SCREEN_WIDTH // 2 + 20, 420, 240, 90),
                                            "WYNIKI", fonts.title, bg=cfg.ACCENT)
+        self.start_button_wide = ui.Button((cfg.SCREEN_WIDTH // 2 - 150, 420, 300, 90),
+                                            "START", fonts.title, bg=cfg.SUCCESS)
 
         # przelacznik trybu gry: strzalki < > wokol nazwy trybu
         self.mode_left_arrow = ui.Button((296, 44, 56, 56), "<",
@@ -60,8 +63,10 @@ class MenuScreen:
                                           "Wylacz Raspberry Pi", fonts.small,
                                           bg=cfg.DANGER, fg=cfg.WHITE)
 
-    def _toggle_mode(self):
-        self.mode = "memory" if self.mode == "reaction" else "reaction"
+    def _toggle_mode(self, direction):
+        idx = self.MODES.index(self.mode)
+        idx = (idx + direction) % len(self.MODES)
+        self.mode = self.MODES[idx]
 
     def handle_event(self, event):
         if event.type != pygame.MOUSEBUTTONDOWN:
@@ -83,8 +88,11 @@ class MenuScreen:
             self.menu_open = True
             return
 
-        if self.mode_left_arrow.is_clicked(pos) or self.mode_right_arrow.is_clicked(pos):
-            self._toggle_mode()
+        if self.mode_left_arrow.is_clicked(pos):
+            self._toggle_mode(-1)
+            return
+        if self.mode_right_arrow.is_clicked(pos):
+            self._toggle_mode(1)
             return
 
         if self.mode == "reaction":
@@ -95,11 +103,14 @@ class MenuScreen:
                 self.next_screen = ("game", self.level)
             elif self.highscore_button.is_clicked(pos):
                 self.next_screen = ("highscores", self.level)
-        else:
+        elif self.mode == "memory":
             if self.start_button.is_clicked(pos):
                 self.next_screen = ("memory",)
             elif self.highscore_button.is_clicked(pos):
                 self.next_screen = ("highscores", "memory")
+        else:  # duel - mecz na biezaco, bez tabeli wynikow
+            if self.start_button_wide.is_clicked(pos):
+                self.next_screen = ("duel",)
 
     def draw(self, screen):
         screen.fill(cfg.BG)
@@ -118,16 +129,25 @@ class MenuScreen:
             if simultaneous > 1:
                 info += "  *  2 diody naraz"
             ui.draw_centered_text(screen, info, 320, self.fonts.small, cfg.TEXT_MUTED)
-        else:
+        elif self.mode == "memory":
             ui.draw_centered_text(screen, "Zapamietaj i powtorz sekwencje przyciskow", 200,
                                    self.fonts.small, cfg.TEXT_MUTED)
             ui.draw_centered_text(screen,
                                    f"Start: {cfg.MEMORY_START_LENGTH} krokow  *  "
                                    f"3 zycia  *  przyspieszenie po {cfg.MEMORY_MAX_LENGTH} krokach",
                                    240, self.fonts.small, cfg.TEXT_MUTED)
-
-        self.start_button.draw(screen)
-        self.highscore_button.draw(screen)
+        else:  # duel
+            ui.draw_centered_text(screen, "2 graczy: lewa polowa vs prawa polowa przyciskow", 200,
+                                   self.fonts.small, cfg.TEXT_MUTED)
+            ui.draw_centered_text(screen,
+                                   f"Zapala sie sygnal - kto pierwszy klinie, ma punkt. "
+                                   f"Falszywy start = punkt dla przeciwnika. Gra do {cfg.DUEL_WIN_SCORE} pkt.",
+                                   240, self.fonts.small, cfg.TEXT_MUTED)
+        if self.mode == "duel":
+            self.start_button_wide.draw(screen)
+        else:
+            self.start_button.draw(screen)
+            self.highscore_button.draw(screen)
 
         self.power_icon.draw(screen)
         if self.menu_open:
@@ -602,6 +622,7 @@ class MemoryScreen:
         if len(self.sequence) < cfg.MEMORY_MAX_LENGTH:
             # sekwencja rosnie o jeden krok w ramach biezacego tempa
             self.sequence.append(random.randrange(cfg.NUM_PADS))
+            self.pause_next_action = "show_next_round"
         else:
             # osiagnieto max dlugosc przy tym tempie - przyspieszamy i
             # zaczynamy rosnac od nowa od dlugosci startowej
@@ -609,7 +630,7 @@ class MemoryScreen:
                                 self.step_ms - cfg.MEMORY_SPEEDUP_STEP_MS)
             self.sequence = [random.randrange(cfg.NUM_PADS)
                               for _ in range(cfg.MEMORY_START_LENGTH)]
-        self.pause_next_action = "show_next_round"
+            self.pause_next_action = "speedup_reset"
         self.pause_started_at = now
         self.state = self.STATE_PAUSE
 
@@ -623,9 +644,14 @@ class MemoryScreen:
         self.state = self.STATE_PAUSE
 
     def _update_pause(self, now):
-        duration = cfg.MEMORY_LIFE_LOST_PAUSE_MS if self.pause_next_action == "retry_same" else cfg.MEMORY_ROUND_PAUSE_MS
+        if self.pause_next_action == "retry_same":
+            duration = cfg.MEMORY_LIFE_LOST_PAUSE_MS
+        elif self.pause_next_action == "speedup_reset":
+            duration = cfg.MEMORY_SPEEDUP_PAUSE_MS
+        else:
+            duration = cfg.MEMORY_ROUND_PAUSE_MS
         if now - self.pause_started_at >= duration:
-            if self.pause_next_action in ("show_next_round", "retry_same"):
+            if self.pause_next_action in ("show_next_round", "retry_same", "speedup_reset"):
                 self._begin_showing(now)
 
     def _end_game(self):
@@ -663,6 +689,9 @@ class MemoryScreen:
             if self.pause_next_action == "retry_same":
                 phase_text = "Pomylka! Powtarzam te sama sekwencje..."
                 text_color = cfg.DANGER
+            elif self.pause_next_action == "speedup_reset":
+                phase_text = "Super! Przyspieszamy tempo..."
+                text_color = cfg.ACCENT
             else:
                 phase_text = "Dobrze! Nastepna runda..."
                 text_color = cfg.SUCCESS
@@ -677,5 +706,251 @@ class MemoryScreen:
             center_rect = pygame.Rect(0, 0, size, size)
             center_rect.center = self.pad_area.center
             pygame.draw.rect(screen, self.center_flash_color, center_rect, border_radius=16)
+
+        self.stop_button.draw(screen)
+
+
+class DuelScreen:
+    """Tryb 'Pojedynek' (2 graczy, quick-draw): plyta podzielona pionowa
+    kreska na lewa/prawa polowe przyciskow. Po losowym opoznieniu zapala
+    sie sygnal (wszystkie diody) - kto pierwszy klinie swoim przyciskiem,
+    ten ma punkt. Klikniecie przed sygnalem = falszywy start, punkt dla
+    przeciwnika. Gra do DUEL_WIN_SCORE punktow."""
+
+    STATE_COUNTDOWN = "countdown"
+    STATE_WAITING = "waiting"
+    STATE_SIGNAL = "signal"
+    STATE_ROUND_PAUSE = "round_pause"
+    STATE_FINISHED = "finished"
+
+    def __init__(self, fonts, controller):
+        self.fonts = fonts
+        self.controller = controller
+        self.next_screen = None
+
+        self.state = self.STATE_COUNTDOWN
+        self.countdown_start = pygame.time.get_ticks()
+        self.countdown_value = 4
+        self.LED_TEST_TIERS = [[0, 1], [2, 7], [3, 6], [4, 5]]
+        self.led_test_tier_index = -1
+        self.led_test_active_pads = set()
+
+        self.score_left = 0
+        self.score_right = 0
+        self.prev_pressed = [False] * cfg.NUM_PADS
+
+        self.wait_deadline = 0
+        self.signal_active_pads = set()
+        self.target_pad = None  # konkretny przycisk, ktory trzeba trafic
+
+        self.correct_flash = {}
+        self.wrong_flash = {}
+        self.flash_left = None   # (kolor, do_kiedy_ms) albo None
+        self.flash_right = None
+
+        self.round_message = ""
+        self.round_message_color = cfg.TEXT_MUTED
+        self.pause_started_at = 0
+        self.finished_at = None
+        self.winner_side = None
+
+        self.stop_button = ui.Button((cfg.SCREEN_WIDTH - 220, cfg.SCREEN_HEIGHT - 100, 180, 70),
+                                      "STOP", fonts.small, bg=cfg.DANGER)
+        self.pad_area = pygame.Rect(242, 108, 540, 380)
+
+    @staticmethod
+    def _side_of(pad_index):
+        return "left" if pad_index in cfg.DUEL_LEFT_PADS else "right"
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and self.stop_button.is_clicked(event.pos):
+            self.controller.all_off()
+            self.next_screen = ("menu", 1)
+
+    def update(self):
+        now = pygame.time.get_ticks()
+
+        if self.state == self.STATE_COUNTDOWN:
+            self._update_countdown(now)
+            return
+        if self.state == self.STATE_WAITING:
+            self._update_waiting(now)
+            return
+        if self.state == self.STATE_SIGNAL:
+            self._update_signal(now)
+            return
+        if self.state == self.STATE_ROUND_PAUSE:
+            self._update_round_pause(now)
+            return
+        if self.state == self.STATE_FINISHED:
+            if now - self.finished_at > 3000:
+                self.next_screen = ("menu", 1)
+            return
+
+    def _update_countdown(self, now):
+        elapsed = now - self.countdown_start
+        tier_count = len(self.LED_TEST_TIERS)
+        tier_duration = cfg.COUNTDOWN_TIER_MS
+        total_duration = tier_duration * tier_count
+
+        tier_index = min(tier_count - 1, elapsed // tier_duration)
+        self.countdown_value = tier_count - tier_index
+
+        if tier_index != self.led_test_tier_index:
+            for pad in self.led_test_active_pads:
+                self.controller.set_led(pad, False)
+            self.led_test_tier_index = tier_index
+            self.led_test_active_pads = set(self.LED_TEST_TIERS[tier_index])
+            for pad in self.led_test_active_pads:
+                self.controller.set_led(pad, True)
+
+        if elapsed >= total_duration:
+            self.controller.all_off()
+            self._start_waiting(now)
+
+    def _start_waiting(self, now):
+        self.state = self.STATE_WAITING
+        self.wait_deadline = now + random.randint(cfg.DUEL_WAIT_MIN_MS, cfg.DUEL_WAIT_MAX_MS)
+        self.target_pad = random.randrange(cfg.NUM_PADS)
+        self.prev_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
+
+    def _check_presses(self):
+        """Zwraca indeks pierwszego swiezo wcisnietego przycisku (albo None)."""
+        currently_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
+        pressed_index = None
+        for i in range(cfg.NUM_PADS):
+            if currently_pressed[i] and not self.prev_pressed[i]:
+                pressed_index = i
+                break
+        self.prev_pressed = currently_pressed
+        return pressed_index
+
+    def _update_waiting(self, now):
+        pressed = self._check_presses()
+        if pressed is not None:
+            foul_side = self._side_of(pressed)
+            self.wrong_flash[pressed] = now + 200
+            self._resolve_round(now, winner_side=("right" if foul_side == "left" else "left"),
+                                 foul_side=foul_side)
+            return
+        if now >= self.wait_deadline:
+            self.state = self.STATE_SIGNAL
+            self.signal_active_pads = {self.target_pad}
+            self.controller.set_led(self.target_pad, True)
+            self.prev_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
+
+    def _update_signal(self, now):
+        pressed = self._check_presses()
+        if pressed is None:
+            return
+        if pressed == self.target_pad:
+            # trafiony wlasciwy przycisk - wygrywa strona, do ktorej on nalezy
+            winner_side = self._side_of(pressed)
+            self.correct_flash[pressed] = now + 200
+            self._resolve_round(now, winner_side=winner_side, foul_side=None)
+        else:
+            # zle zgadniety przycisk - to pomylka, punkt dla strony, do ktorej
+            # nalezal wlasciwy (swiecacy sie) cel
+            foul_side = self._side_of(pressed)
+            winner_side = self._side_of(self.target_pad)
+            self.wrong_flash[pressed] = now + 200
+            self._resolve_round(now, winner_side=winner_side, foul_side=foul_side)
+
+    def _resolve_round(self, now, winner_side, foul_side):
+        self.controller.all_off()
+        self.signal_active_pads = set()
+        if winner_side == "left":
+            self.score_left += 1
+        else:
+            self.score_right += 1
+
+        self.flash_left = None
+        self.flash_right = None
+        until = now + cfg.DUEL_FLASH_MS
+        if foul_side is not None:
+            loser_flash = (cfg.DANGER, until)
+            winner_flash = (cfg.SUCCESS, until)
+            if foul_side == "left":
+                self.flash_left, self.flash_right = loser_flash, winner_flash
+            else:
+                self.flash_right, self.flash_left = loser_flash, winner_flash
+            self.round_message = "Falszywy start!"
+            self.round_message_color = cfg.DANGER
+        else:
+            win_flash = (cfg.SUCCESS, until)
+            if winner_side == "left":
+                self.flash_left = win_flash
+            else:
+                self.flash_right = win_flash
+            self.round_message = "Punkt!"
+            self.round_message_color = cfg.SUCCESS
+
+        self.pause_started_at = now
+        self.state = self.STATE_ROUND_PAUSE
+
+    def _update_round_pause(self, now):
+        if self.flash_left is not None and now >= self.flash_left[1]:
+            self.flash_left = None
+        if self.flash_right is not None and now >= self.flash_right[1]:
+            self.flash_right = None
+        self.correct_flash = {k: v for k, v in self.correct_flash.items() if v > now}
+        self.wrong_flash = {k: v for k, v in self.wrong_flash.items() if v > now}
+
+        if now - self.pause_started_at >= cfg.DUEL_ROUND_PAUSE_MS:
+            if self.score_left >= cfg.DUEL_WIN_SCORE or self.score_right >= cfg.DUEL_WIN_SCORE:
+                self.winner_side = "left" if self.score_left > self.score_right else "right"
+                self.state = self.STATE_FINISHED
+                self.finished_at = now
+            else:
+                self._start_waiting(now)
+
+    def _draw_half_flash(self, screen):
+        half_w = cfg.SCREEN_WIDTH // 2
+        for flash, x_offset in ((self.flash_left, 0), (self.flash_right, half_w)):
+            if flash is not None:
+                color, _until = flash
+                overlay = pygame.Surface((half_w, cfg.SCREEN_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((*color, 90))
+                screen.blit(overlay, (x_offset, 0))
+
+    def draw(self, screen):
+        screen.fill(cfg.BG)
+
+        if self.state == self.STATE_COUNTDOWN:
+            ui.draw_pad_grid(screen, self.pad_area, self.led_test_active_pads, {}, {}, self.fonts.small)
+            ui.draw_centered_text(screen, str(max(1, self.countdown_value)),
+                                   cfg.SCREEN_HEIGHT // 2, self.fonts.huge)
+            return
+
+        self._draw_half_flash(screen)
+
+        # pionowa kreska dzielaca plyte na strone gracza A i B
+        pygame.draw.line(screen, cfg.GRAY, (cfg.SCREEN_WIDTH // 2, 0),
+                          (cfg.SCREEN_WIDTH // 2, cfg.SCREEN_HEIGHT), 4)
+
+        if self.state == self.STATE_FINISHED:
+            winner_label = "GRACZ A" if self.winner_side == "left" else "GRACZ B"
+            ui.draw_centered_text(screen, f"{winner_label} WYGRYWA!", 220, self.fonts.title, cfg.ACCENT)
+            ui.draw_centered_text(screen, f"{self.score_left} : {self.score_right}", 320,
+                                   self.fonts.huge, cfg.TEXT_DARK)
+            return
+
+        # wyniki, kazdy po swojej stronie
+        left_surf = self.fonts.huge.render(str(self.score_left), True, cfg.TEXT_DARK)
+        right_surf = self.fonts.huge.render(str(self.score_right), True, cfg.TEXT_DARK)
+        screen.blit(left_surf, (cfg.SCREEN_WIDTH // 4 - left_surf.get_width() // 2, 24))
+        screen.blit(right_surf, (3 * cfg.SCREEN_WIDTH // 4 - right_surf.get_width() // 2, 24))
+        ui.draw_text(screen, "GRACZ A", cfg.SCREEN_WIDTH // 4 - 60, 100, self.fonts.small, cfg.TEXT_MUTED)
+        ui.draw_text(screen, "GRACZ B", 3 * cfg.SCREEN_WIDTH // 4 - 60, 100, self.fonts.small, cfg.TEXT_MUTED)
+
+        if self.state == self.STATE_ROUND_PAUSE:
+            ui.draw_centered_text(screen, self.round_message, 60, self.fonts.medium, self.round_message_color)
+        elif self.state == self.STATE_SIGNAL:
+            ui.draw_centered_text(screen, "Trafcie ten przycisk!", 60, self.fonts.medium, cfg.SUCCESS)
+        else:
+            ui.draw_centered_text(screen, "Czekaj i patrz uwaznie...", 60, self.fonts.medium, cfg.TEXT_MUTED)
+
+        ui.draw_pad_grid(screen, self.pad_area, self.signal_active_pads,
+                          self.correct_flash, self.wrong_flash, self.fonts.small)
 
         self.stop_button.draw(screen)

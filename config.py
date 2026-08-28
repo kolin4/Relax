@@ -32,10 +32,19 @@ MEMORY_FLASH_ON_MS = 500       # (faza 1) jak dlugo swieci kazdy krok sekwencji
 MEMORY_FLASH_ON_MS_MIN = 200   # dolna granica tempa w fazie 2 (przyspieszanie)
 MEMORY_FLASH_GAP_MS = 200      # przerwa miedzy krokami sekwencji (stala)
 MEMORY_SPEEDUP_STEP_MS = 40    # o ile przyspiesza tempo za kazda udana runde w fazie 2
-MEMORY_ROUND_PAUSE_MS = 500       # przerwa po udanej rundzie, przed pokazem dluzszej sekwencji
-MEMORY_LIFE_LOST_PAUSE_MS = 1600  # dluzsza przerwa po bledzie, zeby user zauwazyl pomylke
-MEMORY_ROUND_PAUSE_MS = 600      # przerwa po udanej rundzie, przed pokazem kolejnej
-MEMORY_LIFE_LOST_PAUSE_MS = 1600 # dluzsza przerwa po bledzie, zeby user zdazyl to zauwazyc
+MEMORY_ROUND_PAUSE_MS = 500       # przerwa po udanej rundzie, przed pokazem kolejnej
+MEMORY_LIFE_LOST_PAUSE_MS = 1600  # dluzsza przerwa po bledzie, zeby user zdazyl to zauwazyc
+MEMORY_SPEEDUP_PAUSE_MS = 1600    # dluzsza przerwa przy resecie 8->4 z szybszym tempem
+
+# === Tryb Pojedynek (2 graczy, quick-draw) ===
+DUEL_WIN_SCORE = 10           # do ilu punktow gra sie mecz
+DUEL_WAIT_MIN_MS = 1000       # losowe opoznienie przed sygnalem - dolna granica
+DUEL_WAIT_MAX_MS = 3000       # losowe opoznienie przed sygnalem - gorna granica
+DUEL_ROUND_PAUSE_MS = 1200    # przerwa miedzy rundami (po rozstrzygnieciu)
+DUEL_FLASH_MS = 500           # jak dlugo swieci polowa ekranu (wygrana/falszywy start)
+# podzial 8 pol na strone lewa/prawa (indeksy 0-7, zgodnie z numeracja 1-8)
+DUEL_LEFT_PADS = (0, 5, 6, 7)   # etykiety 1, 6, 7, 8
+DUEL_RIGHT_PADS = (1, 2, 3, 4)  # etykiety 2, 3, 4, 5
 
 # poziom -> (czas reakcji w ms, ile diod może świecić się jednocześnie)
 # poziomy 1-3: pojedyncza dioda, krzywa czasowa 1000 -> 800 -> 650 ms

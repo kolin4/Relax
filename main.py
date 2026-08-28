@@ -25,6 +25,8 @@ def make_screen(name, fonts, controller, level, score=None):
         return screens.GameScreen(fonts, level, controller)
     if name == "memory":
         return screens.MemoryScreen(fonts, controller)
+    if name == "duel":
+        return screens.DuelScreen(fonts, controller)
     if name == "name_entry":
         return screens.NameEntryScreen(fonts, level, score)
     raise ValueError(f"Nieznany ekran: {name}")
