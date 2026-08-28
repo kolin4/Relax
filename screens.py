@@ -137,12 +137,12 @@ class MenuScreen:
                                    f"3 zycia  *  przyspieszenie po {cfg.MEMORY_MAX_LENGTH} krokach",
                                    240, self.fonts.small, cfg.TEXT_MUTED)
         else:  # duel
-            ui.draw_centered_text(screen, "2 graczy: lewa polowa vs prawa polowa przyciskow", 200,
+            ui.draw_centered_text(screen, "2 graczy: lewa polowa vs prawa polowa przyciskow", 190,
                                    self.fonts.small, cfg.TEXT_MUTED)
-            ui.draw_centered_text(screen,
-                                   f"Zapala sie sygnal - kto pierwszy klinie, ma punkt. "
-                                   f"Falszywy start = punkt dla przeciwnika. Gra do {cfg.DUEL_WIN_SCORE} pkt.",
-                                   240, self.fonts.small, cfg.TEXT_MUTED)
+            ui.draw_centered_text(screen, "Zapala sie sygnal - kto pierwszy trafi swoj przycisk, ma punkt.",
+                                   225, self.fonts.small, cfg.TEXT_MUTED)
+            ui.draw_centered_text(screen, f"Falszywy start = punkt dla przeciwnika. Gra do {cfg.DUEL_WIN_SCORE} pkt.",
+                                   260, self.fonts.small, cfg.TEXT_MUTED)
         if self.mode == "duel":
             self.start_button_wide.draw(screen)
         else:
@@ -166,9 +166,10 @@ class HighscoreScreen:
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.close_button.is_clicked(event.pos):
-            # z tabeli wynikow trybu Pamiec wracamy do menu w trybie domyslnym (reaction)
-            back_level = 1 if self.level == "memory" else self.level
-            self.next_screen = ("menu", back_level)
+            if self.level == "memory":
+                self.next_screen = ("menu", 1, "memory")
+            else:
+                self.next_screen = ("menu", self.level, "reaction")
 
     def draw(self, screen):
         screen.fill(cfg.BG)
@@ -326,7 +327,7 @@ class GameScreen:
                 if hs.qualifies(self.level, self.score):
                     self.next_screen = ("name_entry", self.level, self.score)
                 else:
-                    self.next_screen = ("menu", self.level)
+                    self.next_screen = ("menu", self.level, "reaction")
 
     def _update_playing(self, now):
         elapsed = (now - self.game_start_time) / 1000
@@ -532,7 +533,7 @@ class MemoryScreen:
                 if hs.qualifies("memory", self.score):
                     self.next_screen = ("name_entry", "memory", self.score)
                 else:
-                    self.next_screen = ("menu", 1)
+                    self.next_screen = ("menu", 1, "memory")
             return
 
     # --- odliczanie z testem LED (identyczne jak w GameScreen) ---
@@ -741,7 +742,8 @@ class DuelScreen:
 
         self.wait_deadline = 0
         self.signal_active_pads = set()
-        self.target_pad = None  # konkretny przycisk, ktory trzeba trafic
+        self.target_left = None   # przycisk-cel po lewej stronie
+        self.target_right = None  # przycisk-cel po prawej stronie
 
         self.correct_flash = {}
         self.wrong_flash = {}
@@ -765,7 +767,7 @@ class DuelScreen:
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.stop_button.is_clicked(event.pos):
             self.controller.all_off()
-            self.next_screen = ("menu", 1)
+            self.next_screen = ("menu", 1, "duel")
 
     def update(self):
         now = pygame.time.get_ticks()
@@ -784,7 +786,7 @@ class DuelScreen:
             return
         if self.state == self.STATE_FINISHED:
             if now - self.finished_at > 3000:
-                self.next_screen = ("menu", 1)
+                self.next_screen = ("menu", 1, "duel")
             return
 
     def _update_countdown(self, now):
@@ -811,7 +813,8 @@ class DuelScreen:
     def _start_waiting(self, now):
         self.state = self.STATE_WAITING
         self.wait_deadline = now + random.randint(cfg.DUEL_WAIT_MIN_MS, cfg.DUEL_WAIT_MAX_MS)
-        self.target_pad = random.randrange(cfg.NUM_PADS)
+        self.target_left = random.choice(cfg.DUEL_LEFT_PADS)
+        self.target_right = random.choice(cfg.DUEL_RIGHT_PADS)
         self.prev_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
 
     def _check_presses(self):
@@ -835,24 +838,28 @@ class DuelScreen:
             return
         if now >= self.wait_deadline:
             self.state = self.STATE_SIGNAL
-            self.signal_active_pads = {self.target_pad}
-            self.controller.set_led(self.target_pad, True)
+            self.signal_active_pads = {self.target_left, self.target_right}
+            self.controller.set_led(self.target_left, True)
+            self.controller.set_led(self.target_right, True)
             self.prev_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
 
     def _update_signal(self, now):
         pressed = self._check_presses()
         if pressed is None:
             return
-        if pressed == self.target_pad:
-            # trafiony wlasciwy przycisk - wygrywa strona, do ktorej on nalezy
-            winner_side = self._side_of(pressed)
+        if pressed == self.target_left:
+            # lewa strona trafila swoj cel pierwsza - wygrywa
             self.correct_flash[pressed] = now + 200
-            self._resolve_round(now, winner_side=winner_side, foul_side=None)
+            self._resolve_round(now, winner_side="left", foul_side=None)
+        elif pressed == self.target_right:
+            # prawa strona trafila swoj cel pierwsza - wygrywa
+            self.correct_flash[pressed] = now + 200
+            self._resolve_round(now, winner_side="right", foul_side=None)
         else:
-            # zle zgadniety przycisk - to pomylka, punkt dla strony, do ktorej
-            # nalezal wlasciwy (swiecacy sie) cel
+            # nacisniety zly przycisk po swojej stronie (nie swoj cel) - pomylka,
+            # punkt dla przeciwnika
             foul_side = self._side_of(pressed)
-            winner_side = self._side_of(self.target_pad)
+            winner_side = "right" if foul_side == "left" else "left"
             self.wrong_flash[pressed] = now + 200
             self._resolve_round(now, winner_side=winner_side, foul_side=foul_side)
 

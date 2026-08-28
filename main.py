@@ -89,9 +89,16 @@ def main():
                 name, *rest = current.next_screen
                 if name == "quit":
                     return
-                level = rest[0] if rest else 1
-                score = rest[1] if len(rest) > 1 else None
-                current = make_screen(name, fonts, controller, level, score)
+                if name == "menu":
+                    # przejscie do menu moze niesc ze soba tryb (reaction/memory/duel),
+                    # zeby po powrocie z gry menu pokazalo sie w tym samym trybie
+                    level = rest[0] if rest else 1
+                    mode = rest[1] if len(rest) > 1 else "reaction"
+                    current = screens.MenuScreen(fonts, level, mode=mode)
+                else:
+                    level = rest[0] if rest else 1
+                    score = rest[1] if len(rest) > 1 else None
+                    current = make_screen(name, fonts, controller, level, score)
     finally:
         controller.cleanup()
         pygame.quit()
