@@ -17,8 +17,9 @@ import highscores as hs
 
 
 class MenuScreen:
-    MODES = ["reaction", "memory", "duel"]
-    MODE_LABELS = {"reaction": "Reaction Tester", "memory": "Pamiec", "duel": "Pojedynek"}
+    MODES = ["reaction", "memory", "duel", "survival"]
+    MODE_LABELS = {"reaction": "Reaction Tester", "memory": "Pamiec", "duel": "Pojedynek",
+                   "survival": "Przetrwanie"}
 
     def __init__(self, fonts, level, mode="reaction"):
         self.fonts = fonts
@@ -108,6 +109,11 @@ class MenuScreen:
                 self.next_screen = ("memory",)
             elif self.highscore_button.is_clicked(pos):
                 self.next_screen = ("highscores", "memory")
+        elif self.mode == "survival":
+            if self.start_button.is_clicked(pos):
+                self.next_screen = ("survival",)
+            elif self.highscore_button.is_clicked(pos):
+                self.next_screen = ("highscores", "survival")
         else:  # duel - mecz na biezaco, bez tabeli wynikow
             if self.start_button_wide.is_clicked(pos):
                 self.next_screen = ("duel",)
@@ -135,6 +141,11 @@ class MenuScreen:
             ui.draw_centered_text(screen,
                                    f"Start: {cfg.MEMORY_START_LENGTH} krokow  *  "
                                    f"3 zycia  *  przyspieszenie po {cfg.MEMORY_MAX_LENGTH} krokach",
+                                   240, self.fonts.small, cfg.TEXT_MUTED)
+        elif self.mode == "survival":
+            ui.draw_centered_text(screen, "Jedna dioda, tempo rosnie z kazdym trafieniem", 200,
+                                   self.fonts.small, cfg.TEXT_MUTED)
+            ui.draw_centered_text(screen, "Pierwszy blad konczy gre. Wynik = liczba trafien z rzedu.",
                                    240, self.fonts.small, cfg.TEXT_MUTED)
         else:  # duel
             ui.draw_centered_text(screen, "2 graczy: lewa polowa vs prawa polowa przyciskow", 190,
@@ -931,16 +942,16 @@ class DuelScreen:
 
         self._draw_half_flash(screen)
 
-        # pionowa kreska dzielaca plyte na strone gracza A i B
-        pygame.draw.line(screen, cfg.GRAY, (cfg.SCREEN_WIDTH // 2, 0),
-                          (cfg.SCREEN_WIDTH // 2, cfg.SCREEN_HEIGHT), 4)
-
         if self.state == self.STATE_FINISHED:
             winner_label = "GRACZ A" if self.winner_side == "left" else "GRACZ B"
             ui.draw_centered_text(screen, f"{winner_label} WYGRYWA!", 220, self.fonts.title, cfg.ACCENT)
             ui.draw_centered_text(screen, f"{self.score_left} : {self.score_right}", 320,
                                    self.fonts.huge, cfg.TEXT_DARK)
             return
+
+        # pionowa kreska dzielaca plyte na strone gracza A i B (tylko w trakcie gry)
+        pygame.draw.line(screen, cfg.GRAY, (cfg.SCREEN_WIDTH // 2, 0),
+                          (cfg.SCREEN_WIDTH // 2, cfg.SCREEN_HEIGHT), 4)
 
         # wyniki, kazdy po swojej stronie
         left_surf = self.fonts.huge.render(str(self.score_left), True, cfg.TEXT_DARK)
@@ -959,5 +970,180 @@ class DuelScreen:
 
         ui.draw_pad_grid(screen, self.pad_area, self.signal_active_pads,
                           self.correct_flash, self.wrong_flash, self.fonts.small)
+
+        self.stop_button.draw(screen)
+
+
+class SurvivalScreen:
+    """Tryb 'Przetrwanie': jedna dioda na raz, czas na reakcje skraca sie
+    z kazdym trafieniem. Pierwszy blad (zly przycisk albo przegapiony
+    czas) konczy gre. Wynik = liczba trafien z rzedu."""
+
+    STATE_COUNTDOWN = "countdown"
+    STATE_PLAYING = "playing"
+    STATE_FINISHED = "finished"
+
+    def __init__(self, fonts, controller):
+        self.fonts = fonts
+        self.controller = controller
+        self.next_screen = None
+
+        self.state = self.STATE_COUNTDOWN
+        self.countdown_start = pygame.time.get_ticks()
+        self.countdown_value = 4
+        self.LED_TEST_TIERS = [[0, 1], [2, 7], [3, 6], [4, 5]]
+        self.led_test_tier_index = -1
+        self.led_test_active_pads = set()
+
+        self.score = 0
+        self.window_ms = cfg.SURVIVAL_START_MS
+        self.target_pad = None
+        self.deadline = 0
+        self.round_started_at = 0
+        self.prev_pressed = [False] * cfg.NUM_PADS
+
+        self.correct_flash = {}
+        self.wrong_flash = {}
+        self.center_flash_color = None
+        self.center_flash_until = 0
+
+        self.miss_reason = None
+        self.finished_at = None
+
+        self.stop_button = ui.Button((cfg.SCREEN_WIDTH - 220, cfg.SCREEN_HEIGHT - 100, 180, 70),
+                                      "STOP", fonts.small, bg=cfg.DANGER)
+        self.pad_area = pygame.Rect(242, 108, 540, 380)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and self.stop_button.is_clicked(event.pos):
+            self._end_game(pygame.time.get_ticks(), reason=None)
+
+    def update(self):
+        now = pygame.time.get_ticks()
+
+        if self.state == self.STATE_COUNTDOWN:
+            self._update_countdown(now)
+            return
+        if self.state == self.STATE_PLAYING:
+            self._update_playing(now)
+            return
+        if self.state == self.STATE_FINISHED:
+            if now - self.finished_at > 1500:
+                if hs.qualifies("survival", self.score):
+                    self.next_screen = ("name_entry", "survival", self.score)
+                else:
+                    self.next_screen = ("menu", 1, "survival")
+            return
+
+    def _update_countdown(self, now):
+        elapsed = now - self.countdown_start
+        tier_count = len(self.LED_TEST_TIERS)
+        tier_duration = cfg.COUNTDOWN_TIER_MS
+        total_duration = tier_duration * tier_count
+
+        tier_index = min(tier_count - 1, elapsed // tier_duration)
+        self.countdown_value = tier_count - tier_index
+
+        if tier_index != self.led_test_tier_index:
+            for pad in self.led_test_active_pads:
+                self.controller.set_led(pad, False)
+            self.led_test_tier_index = tier_index
+            self.led_test_active_pads = set(self.LED_TEST_TIERS[tier_index])
+            for pad in self.led_test_active_pads:
+                self.controller.set_led(pad, True)
+
+        if elapsed >= total_duration:
+            self.controller.all_off()
+            self.score = 0
+            self.window_ms = cfg.SURVIVAL_START_MS
+            self._start_round(now)
+
+    def _start_round(self, now):
+        self.state = self.STATE_PLAYING
+        available = [i for i in range(cfg.NUM_PADS) if i != self.target_pad]
+        self.target_pad = random.choice(available)
+        self.controller.set_led(self.target_pad, True)
+        self.deadline = now + self.window_ms
+        self.round_started_at = now
+        self.prev_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
+
+    def _update_playing(self, now):
+        currently_pressed = [self.controller.is_pressed(i) for i in range(cfg.NUM_PADS)]
+        pressed = None
+        for i in range(cfg.NUM_PADS):
+            if currently_pressed[i] and not self.prev_pressed[i]:
+                pressed = i
+                break
+        self.prev_pressed = currently_pressed
+
+        if pressed is not None:
+            if pressed == self.target_pad:
+                self.controller.set_led(pressed, False)
+                self.correct_flash[pressed] = now + 150
+                self.center_flash_color = cfg.SUCCESS
+                self.center_flash_until = now + 150
+                self.score += 1
+                self.window_ms = max(cfg.SURVIVAL_MIN_MS, self.window_ms - cfg.SURVIVAL_SPEEDUP_MS)
+                self._start_round(now)
+            else:
+                self.wrong_flash[pressed] = now + 150
+                self.center_flash_color = cfg.DANGER
+                self.center_flash_until = now + 150
+                self._end_game(now, reason="wrong")
+            return
+
+        if now >= self.deadline:
+            self.wrong_flash[self.target_pad] = now + 150
+            self.center_flash_color = cfg.DANGER
+            self.center_flash_until = now + 150
+            self._end_game(now, reason="timeout")
+
+        self.correct_flash = {k: v for k, v in self.correct_flash.items() if v > now}
+        self.wrong_flash = {k: v for k, v in self.wrong_flash.items() if v > now}
+
+    def _end_game(self, now, reason):
+        self.controller.all_off()
+        self.miss_reason = reason
+        self.state = self.STATE_FINISHED
+        self.finished_at = now
+
+    def draw(self, screen):
+        screen.fill(cfg.BG)
+
+        if self.state == self.STATE_COUNTDOWN:
+            ui.draw_pad_grid(screen, self.pad_area, self.led_test_active_pads, {}, {}, self.fonts.small)
+            ui.draw_centered_text(screen, str(max(1, self.countdown_value)),
+                                   cfg.SCREEN_HEIGHT // 2, self.fonts.huge)
+            return
+
+        if self.state == self.STATE_FINISHED:
+            ui.draw_centered_text(screen, "KONIEC GRY", 200, self.fonts.title, cfg.TEXT_DARK)
+            ui.draw_centered_text(screen, f"Trafien z rzedu: {self.score}", 300,
+                                   self.fonts.huge, cfg.ACCENT)
+            return
+
+        ui.draw_text(screen, f"Wynik: {self.score}", 40, 24, self.fonts.medium)
+        speed_pct = int(100 * (cfg.SURVIVAL_START_MS - self.window_ms) /
+                         max(1, cfg.SURVIVAL_START_MS - cfg.SURVIVAL_MIN_MS))
+        speed_surf = self.fonts.medium.render(f"Tempo: {speed_pct}%", True, cfg.TEXT_MUTED)
+        screen.blit(speed_surf, (cfg.SCREEN_WIDTH - 40 - speed_surf.get_width(), 24))
+
+        # pasek pokazujacy ile czasu zostalo na reakcje w tej rundzie
+        now = pygame.time.get_ticks()
+        remaining_frac = max(0.0, min(1.0, (self.deadline - now) / max(1, self.window_ms)))
+        bar_rect = pygame.Rect(212, 70, 600, 14)
+        pygame.draw.rect(screen, cfg.GRAY_LIGHT, bar_rect, border_radius=7)
+        fill_rect = pygame.Rect(bar_rect.x, bar_rect.y, int(bar_rect.width * remaining_frac), bar_rect.height)
+        bar_color = cfg.SUCCESS if remaining_frac > 0.3 else cfg.DANGER
+        pygame.draw.rect(screen, bar_color, fill_rect, border_radius=7)
+
+        ui.draw_pad_grid(screen, self.pad_area, {self.target_pad} if self.target_pad is not None else set(),
+                          self.correct_flash, self.wrong_flash, self.fonts.small)
+
+        if self.center_flash_color is not None and pygame.time.get_ticks() < self.center_flash_until:
+            size = 140
+            center_rect = pygame.Rect(0, 0, size, size)
+            center_rect.center = self.pad_area.center
+            pygame.draw.rect(screen, self.center_flash_color, center_rect, border_radius=16)
 
         self.stop_button.draw(screen)
